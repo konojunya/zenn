@@ -1,0 +1,26 @@
+title: "実践Google Tag Manager"
+summary: "サービスのリリース時には欠かせないユーザー行動の分析などで役立つ「Google Analytics」。そのタグを簡単に一元管理できる「Google Tag Manager」の実践的な使い方を紹介します。4章まで無料公開しており、Google Tag Managerを使ってページビューの計測までを行えるようになっています。"
+topics: ["googletagmanager", "googleanalytics"]
+published: false
+price: 500
+chapters:
+  - introduction.md
+  - what-is-google-tag-manager.md
+  - advance-preparations.md
+  - pageview.md
+  - custom-event.md
+  - what-is-scope.md
+  - dimension-and-metrics.md
+  - create-a-goal.md
+  - custom-dimension-and-custom-metrics.md
+  - contents-group.md
+  - filter.md
+  - segment.md
+  - setting-up-a-practical-gtm.md
+  - utm-parameters.md
+  - extended-e-commerce.md
+  - cross-domain-tracking.md
+  - privacy-and-data-protection.md
+  - data-studio.md
+  - other-container-type.md
+  - gaiq.md
