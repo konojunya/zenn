@@ -6,11 +6,15 @@
   "author": "konojunya <junya03dance@gmail.com>",
   "license": "MIT",
   "dependencies": {
+    "textlint": "^11.7.6",
+    "textlint-rule-preset-ja-spacing": "^2.0.2",
+    "textlint-rule-preset-ja-technical-writing": "^4.0.1",
     "zenn-cli": "^0.1.45"
   },
   "scripts": {
     "new:article": "zenn new:article",
     "new:book": "zenn new:book",
-    "preview": "zenn preview"
+    "preview": "zenn preview",
+    "lint": "textlint './@(books|articles)/**'"
   }
 }
