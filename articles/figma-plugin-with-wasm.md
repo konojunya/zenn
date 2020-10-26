@@ -8,6 +8,8 @@ published: true
 
 Figma の Plugin を Rust を使って書いて WebAssembly にコンパイルしたものを Figma 上で使ってみるサンプルを作ってみます。
 
+# Figma Plugin のテンプレートから作る
+
 まずは Figma の Plugin のテンプレートから **With UI & browser APIs** を選択して作っていきます。他の 2 つのテンプレートはそれぞれ、 Plugin の作成の必須ファイルである `manifest.json` とメインの JavaScript ファイルだけを作るものと、 UI が必要ないような Plugin を作るためのものとなっています。
 
 **Profile の Plugin の画面へいく**
