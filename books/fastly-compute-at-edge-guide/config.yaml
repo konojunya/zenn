@@ -5,4 +5,5 @@ published: false
 price: 0
 chapters:
   - introduction
+  - synthetic-response
   - basicauth

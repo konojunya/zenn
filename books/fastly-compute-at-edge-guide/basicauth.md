@@ -2,7 +2,7 @@
 title: "Basic 認証"
 ---
 
-第 1 章は Basic 認証を Compute@Edge で実装します。
+第 2 章は Basic 認証を Compute@Edge で実装します。
 
 Basic 認証の実装の流れは以下のようになります。
 
