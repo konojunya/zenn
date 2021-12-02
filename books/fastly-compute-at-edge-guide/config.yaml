@@ -1,0 +1,8 @@
+title: "Fastly Compute@Edge 使い方ガイド"
+summary: "Fastly の Compute@Edge についてユースケース別に実装例を書いていきます。"
+topics: ["fastly"]
+published: false
+price: 0
+chapters:
+  - introduction
+  - basicauth
