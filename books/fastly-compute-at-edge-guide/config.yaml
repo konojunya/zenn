@@ -7,3 +7,4 @@ chapters:
   - introduction
   - synthetic-response
   - basicauth
+  - custom-header
