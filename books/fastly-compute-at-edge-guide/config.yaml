@@ -8,3 +8,4 @@ chapters:
   - synthetic-response
   - basicauth
   - custom-header
+  - multiple-origin
