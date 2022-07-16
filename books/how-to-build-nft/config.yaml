@@ -1,0 +1,8 @@
+title: "自作コントラクトと自作サイトで NFT を Mint しよう"
+summary: "スマートコントラクトの作成、Mint サイトを実装し、NFT に対する理解を深めます。"
+topics: ["nft", "smartcontract", "solidity"]
+published: false
+price: 0
+chapters:
+  - introduction
+  - create-image-and-metadata.md
