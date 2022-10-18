@@ -92,46 +92,64 @@ ref: https://developer.mozilla.org/ja/docs/Web/HTTP/Headers/Content-Security-Pol
 
 ![](https://storage.googleapis.com/zenn-user-upload/cb825f4c6b10-20221018.png)
 
-ではこの HTML を Pinata を使ってアップロードしてみましょう。以下のような画面になりました。
+ではこの HTML を Pinata を使ってアップロードしてみましょう。
+
+アップロードされた HTML を確認しても画面上には何も表示されていません。
 
 エラーは以下です。
 
+![](https://storage.googleapis.com/zenn-user-upload/f33be9560cf8-20221019.png)
+
+> Refused to load the script 'https://cdn.jsdelivr.net/npm/p5@1.4.2/lib/p5.js' because it violates the following Content Security Policy directive: "default-src 'self'". Note that 'script-src-elem' was not explicitly set, so 'default-src' is used as a fallback.
+
+> Refused to execute inline script because it violates the following Content Security Policy directive: "default-src 'self'". Either the 'unsafe-inline' keyword, a hash ('sha256-fF3DaD9HR6DliS3PyAkXbc3Y/ozLAkbDdKOJlppl5Rg='), or a nonce ('nonce-...') is required to enable inline execution. Note also that 'script-src' was not explicitly set, so 'default-src' is used as a fallback.
+
 ## 解決方法
 
-この問題の解決方法は、 `content-security-policy` ヘッダーの `default-src` が `'self'` になっているため、自分自身で p5.js をホスティングする必要があります。
+エラーが 2 つあります。1 つ目は外部スクリプトを読みに行っているが、 `default-src` で `self` を指しているため取得できずにエラーになっています。2 つ目は自分自身の書いた JavaScript が実行できなかったというエラーになります。
 
-以下のようなディレクトリ構造を作ります。
+解決方法としては、どちらも HTML を配信しているドメインと同じ場所で配信し、 inline script にしないようにすると動かすことができます。
+
+先ほどの実装に少し手を加えてみます。
+
+まずは p5.js を手元にダウンロードします。そして inline で書いていた script を別のファイルに書き出しましょう。つまりファイル構成は以下のようになります。
 
 ```
 - index.html
 - p5.js
+- script.js
 ```
 
-そして HTML の script タグの実装を以下のように変更します。
+そして HTML を以下のように変更します。
 
-```html
+```diff
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <title>p5.js example</title>
-    <script src="p5.js"></script>
-    <script>
-      function setup() {
-        createCanvas(400, 400);
-      }
-
-      function draw() {
-        background(220);
-        ellipse(50, 50, 80, 80);
-      }
-    </script>
+-    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.2/lib/p5.js"></script>
++    <script src="p5.js"></script>
+-    <script>
+-      function setup() {
+-        createCanvas(400, 400);
+-      }
+-
+-      function draw() {
+-        background(220);
+-        ellipse(50, 50, 80, 80);
+-      }
+-    </script>
++    <script src="script.js"></script>
   </head>
   <body></body>
 </html>
 ```
 
-こうすることで、p5.js は pinata のドメインに乗るため、`default-src: 'self'` になっていても表示できます。
+この 3 つのファイルをそのまま folder として pinata にアップロードします。
+すると以下のように pinata でも JavaScript を動作させることができました！ 🎉
+
+![](https://storage.googleapis.com/zenn-user-upload/9efe5e866a76-20221019.png)
 
 # あとがき
 
