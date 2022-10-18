@@ -56,7 +56,7 @@ ref: https://developer.mozilla.org/ja/docs/Web/HTTP/CSP
 
 > コンテンツセキュリティポリシー (CSP) は、クロスサイトスクリプティング (Cross-site_scripting) やデータインジェクション攻撃などのような、特定の種類の攻撃を検知し、影響を軽減するために追加できるセキュリティレイヤーです。
 
-とあります。つまり、この設定をすることで XSS などの外部からの攻撃を検知し、ブラウザがそのリクエストを reject してしまうことで、影響を軽減するために追加するものになります。
+とあります。つまりこの設定をすることで XSS などの外部からの攻撃を検知し、ブラウザがそのリクエストを error にしてしまうことで、影響を軽減するため追加するものになります。
 
 今回のレスポンスヘッダーに関してはこちらでより詳細にヘッダーの説明がされています。
 
@@ -132,3 +132,7 @@ ref: https://developer.mozilla.org/ja/docs/Web/HTTP/Headers/Content-Security-Pol
 ```
 
 こうすることで、p5.js は pinata のドメインに乗るため、`default-src: 'self'` になっていても表示できます。
+
+# あとがき
+
+今回扱った example は[こちら](https://github.com/konojunya/zenn/tree/main/examples/pinata-csp)です。
