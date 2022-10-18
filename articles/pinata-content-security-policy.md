@@ -3,7 +3,7 @@ title: "NFTのコンテンツサーバーにPinataを使う場合の注意点"
 emoji: "🦄"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["pinata", "nft"]
-published: false
+published: true
 ---
 
 NFT を作成する際にその中でも、 JavaScript でアニメーションを描いたりしてインタラクティブなものを作成することがあります。今回はそのような事例の際に気をつけないといけない点を紹介します。
