@@ -106,9 +106,9 @@ ref: https://developer.mozilla.org/ja/docs/Web/HTTP/Headers/Content-Security-Pol
 
 ## 解決方法
 
-エラーが 2 つあります。1 つ目は外部スクリプトを読みに行っているが、 `default-src` で `self` を指しているため取得できずにエラーになっています。2 つ目は自分自身の書いた JavaScript が実行できなかったというエラーになります。
+エラーが 2 つあります。1 つ目は外部スクリプトを読み込んでいますが `default-src` で `self` を指しているため取得できず、エラーになっています。2 つ目は自分自身の書いた JavaScript が実行できなかったというエラーです。
 
-解決方法としては、どちらも HTML を配信しているドメインと同じ場所で配信し、 inline script にしないようにすると動かすことができます。
+解決方法としては、どちらも HTML を配信しているドメインと同じドメインで配信し、 inline script にならないようファイルを分けて配信します。
 
 先ほどの実装に少し手を加えてみます。
 
@@ -147,7 +147,8 @@ ref: https://developer.mozilla.org/ja/docs/Web/HTTP/Headers/Content-Security-Pol
 ```
 
 この 3 つのファイルをそのまま folder として pinata にアップロードします。
-すると以下のように pinata でも JavaScript を動作させることができました！ 🎉
+
+すると以下のように pinata でも JavaScript を動作させることができました！
 
 ![](https://storage.googleapis.com/zenn-user-upload/9efe5e866a76-20221019.png)
 
