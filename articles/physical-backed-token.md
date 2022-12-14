@@ -16,7 +16,7 @@ https://www.azuki.com/updates/pbt
 
 Pysical Backed Token(以下 PBT)とは Azuki が新しく作った物理的な物とオンチェーンの所有を同期させるための EIP の規格(EIP-5791)です。
 
-これを実現するために必要なのは PBT に準拠した Token と BEAN(Blockchain Enabled Authentication Network) Chip（以下 チップ）の 2 つの要素が重要になります。またチップは非対称鍵ペアを自己生成できるチップであると要件が定義されています。
+これを実現するために必要なのは PBT に準拠した Token と BEAN(Blockchain Enabled Authentication Network) Chip(以下チップ)の 2 つの要素が重要になります。またチップは非対称鍵ペアを自己生成できるチップであると要件が定義されています。
 
 ![](https://azuki-2.ghost.io/content/images/size/w1000/2022/10/whitechipexplainer.png)
 
@@ -33,7 +33,7 @@ Pysical Backed Token(以下 PBT)とは Azuki が新しく作った物理的な�
 - 物品の所有者の履歴を追跡可能にする
   - その物品の過去と現在の所有者を検証可能にすることで、ブランドは所有者だけでなく元所有者も含めて顧客体験を作ることができる
 - デジタル上の体験のために物理的な製品の使用を可能にする
-  - デジタルなトークンを保有することで物理的に何かを得たり、物理的な物を保有することでデジタル上で何かを得たりして、相互の世界を干渉させる役割を持たせる
+  - デジタルなトークンを保有することで物理的に何かを得たり、物理的な物を保有することによりデジタル上で何かを得たりして、相互の世界を干渉させる役割を持たせる
 
 # Azuki の目指した世界
 
@@ -48,11 +48,11 @@ PBT は前途したように EIP-5791 で規約が決められています。
 
 https://eips.ethereum.org/EIPS/eip-5791
 
-EIP-5791 として定義しているのは NFT(EIP-721)の所有者を物理チップにリンクするための最小限のインターフェースです。そのため EIP-5791 は EIP-721 拡張であると言えます。
+EIP-5791 として定義しているのは NFT(EIP-721)の所有者を物理チップにリンクするための最小限のインターフェースです。そのため EIP-5791 は EIP-721 拡張と言えます。
 
 ## モチベーション
 
-現在 NFT コレクターはデジタル資産を収集し、オンライン上で他の人と共有したりしていますが、物品の場合それが本物であり、自らが所有者であることが確認された資産として NFT を展示する際の明確な基準が存在していません。現時点では NFT と物理資産は所有権が分離してると言えて、これらを証明するには信頼できる第三者(例えば StockX など)からのアクションが必要になります。
+現在 NFT コレクターはデジタル資産を収集し、オンライン上で他の人と共有したりしていますが、物品の場合それが本物であり、所有者であることが確認された資産として NFT を展示する際の明確な基準が存在していません。現時点では NFT と物理資産は所有権が分離してると言えて、これらを証明するには信頼できる第三者(例えば StockX など)からのアクションが必要になります。
 
 ## 要件
 
@@ -66,13 +66,13 @@ PBT では物理的なアイテムに対して以下の条件を満たすチッ�
 ## アプローチ
 
 NFT を mint する際に対応するチップのアドレスを含んだイベントを投げる必要があり、NFT はチップとリンクしてないと mint できないようにします。
-`transferTokenWithChip`という関数を呼ぶことで、チップにより署名された有効な署名が渡された場合に msg.sender に対して NFT を transfer します。
+`transferTokenWithChip` という関数を呼ぶことで、チップにより署名された有効な署名が渡された場合に msg.sender に対して NFT を transfer します。
 
 ## 注意事項
 
-以下のことはこの EIP の範囲外になります
+以下のことはこの EIP の範囲外になります。
 
-- 特定の NFT コレクションのチップアドレスが任意の EOA でなく、アイテムに埋められた物知的なチップに実際にマッピングされていることを信頼すること
+- 特定の NFT コレクションのチップアドレスが任意の EOA でなく、アイテムに埋められた物知的なチップが実際にマッピングされていることを信頼すること
 - チップの劣化や損傷がないことを保証すること
 - チップが物理的なものに取り付けられていること
 - tokenId をチップのアドレスにマッピングすること
@@ -136,7 +136,7 @@ contract ERC721ReadOnly is ERC721 {
 }
 ```
 
-approve / getApproved / setApprovalForAll / isApprovalForAll / transferFrom / safeTransferFrom が全て revert で override されています。これは PBT は scan でしか NFT を移動できないようにするための制約になります。
+approve / getApproved / setApprovalForAll / isApprovalForAll / transferFrom / safeTransferFrom が全て revert で override されています。PBT は scan でしか NFT を移動できないようにするための制約になります。
 
 PBT TokenData の形は以下のように定義されています。ERC-721 の tokenId と chipAddress がセットになっています。
 
@@ -148,7 +148,7 @@ struct TokenData {
 }
 ```
 
-chipAddress と tokenId のマッピングを最初に作成します。tokenId の owner が Null Address じゃない時に revert される分岐が入っています。これはそもそも既存のコレクションの場合、Proxy パターンなどコントラクトを再デプロイできる形になっていないと ERC-721 を ERC-5791 に後からすることはできないので、基本的に今から始めるプロジェクトで使う前提のようなコードになっています。また PBT にできたとしても現物のものを holder に送らないといけなくなり、NFT 起点でものが動いているので思想とマッチしないなと筆者も考えます。
+chipAddress と tokenId のマッピングを最初に作成します。tokenId の owner が Null Address じゃない時に revert される分岐が入っています。これはそもそも既存のコレクションの場合、Proxy パターンなどコントラクトを再デプロイできる形になっていないと ERC-721 を ERC-5791 に後からできないので、基本的に今から始めるプロジェクトで使う前提のようなコードになっています。また PBT にできたとしても現物のものを holder に送らないといけなくなり、NFT 起点でものが動いているので思想とマッチしないなと筆者も考えます。
 
 ```solidity
 function _seedChipToTokenMapping(address[] memory chipAddresses, uint256[] memory tokenIds, bool throwIfTokenAlreadyMinted) internal {
@@ -171,7 +171,7 @@ function _seedChipToTokenMapping(address[] memory chipAddresses, uint256[] memor
 }
 ```
 
-chipAddress から tokenId を抜いてくる実装
+chipAddress から tokenId を抜いてくる実装。
 
 ```solidity
 function tokenIdMappedFor(address chipAddress) public view returns (uint256) {
@@ -235,8 +235,8 @@ function _getTokenDataForChipSignature(bytes calldata signatureFromChip, uint256
 
 つまり scan した時に最新の block number と scan した wallet のアドレスをチップの秘密鍵を使って署名しそこで得た signature と block number を用いてどの NFT を移動させるのか決めて transfer を実行します。
 
-ERC-721 の \_transfer は openzeppelin の実装を見る限り最初にいかのように tokenId の owner が from の address と同じかどうかを確認しています。しかしこのサンプル実装では from に対して `ownerOf(tokenId)` をいれているので、この require には 100%引っかかりません。このことから scan をすることができれば owner の意思に関係なく、NFT を盗むことができます。しかし transferFrom が禁止されているため、その NFT をまた別の wallet にうつしたり、マーケットプレイスに出品したりすることができないし、もう一度物品所有者が scan を行えば NFT は所有者の元に帰ってきます。これらのことからただ gas 代を払うだけになってしまうので、NFT だけ盗んでも意味がないような設計になっているという見方ができると思います。
-PBT ではものが中心の世界なため、ものを配送して新しい所有者になった時にその所有者が元の所有者の意思に関係なく scan をすることで NFT を手元に持ってこれるようにするためこのような実装になっているのかなと推察します。
+ERC-721 の \_transfer は openzeppelin の実装を見る限り最初にいかのように tokenId の owner が from の address と同じかどうかを確認しています。このサンプル実装では from に対して `ownerOf(tokenId)` をいれているので、この require には 100%引っかかりません。このことから scan をできれば owner の意思に関係なく、NFT を盗むことができます。しかし transferFrom が禁止されているため、その NFT をまた別の wallet にうつしたり、マーケットプレイスに出品したりできないし、もう一度現物の所有者が scan を行えば NFT は所有者の元に帰ってきます。これらのことからただ gas 代を払うだけになってしまうので、NFT だけ盗んでも意味がないような設計になっているという見方ができます。
+PBT ではものが中心の世界なため、ものを配送して新しい所有者になった時、その所有者が元の所有者の意思に関係なく scan をすることで NFT を手元へ持ってこれるようにするため、このような実装になっているのかなと推察します。
 
 ```solidity
 require(ERC721.ownerOf(tokenId) == from, "ERC721: transfer from incorrect owner");
@@ -244,7 +244,7 @@ require(ERC721.ownerOf(tokenId) == from, "ERC721: transfer from incorrect owner"
 
 ## セキュリティーへの配慮
 
-`transferTokenWithChip`に渡される署名は EIP-191 署名になっており、署名データ内に関数の呼び出し元のアドレス(msg.sender)が必要になるため、リプレイ攻撃で署名が悪用されることがありません。
+`transferTokenWithChip` に渡される署名は EIP-191 署名になっており、署名データ内に関数の呼び出し元のアドレス(msg.sender)が必要になるため、リプレイ攻撃で署名が悪用されることはありません。
 また悪意のあるチップの所有者が短期間後に使用する署名を事前に生成できないように直近のブロックハッシュを必要としています。
 
 # Azuki の GoldenSkateboard の 実装を読む
@@ -288,4 +288,4 @@ function _mintTokenWithChip(bytes calldata signatureFromChip, uint256 blockNumbe
 }
 ```
 
-単純に ERC-721 の`_mint`を実行してるだけです。 PBTMint event の emit だけする必要がありますが、チップをどうやって用意するんだよ！って問題だけ解決できれば PBT の実装自体はそんなに難しくなさそうですね。
+単純に ERC-721 の `_mint` を実行してるだけです。 PBTMint event の emit だけする必要がありますが、チップをどうやって用意するんだよ！って問題だけ解決できれば PBT の実装自体はそんなに難しくなさそうですね。
