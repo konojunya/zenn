@@ -4,6 +4,7 @@ emoji: "🛹"
 type: "tech"
 topics: ["ethereum", "nft", "pbt"]
 published: true
+publication_name: "microverse_dev"
 ---
 
 [Azuki](https://azuki.com) が 2022/10/17 に発表した新しい NFT の規格「Physical Backed Token」について深掘りしていきます。
