@@ -6,7 +6,7 @@ topics: ["nft", "merkletree"]
 published: true
 ---
 
-NFT Project ではよく「特定のアドレスの人だけが実行できる関数」を実装したくなります。例えば別のプロジェクトの NFT を保持してる人だけにこの NFT を mint させたいなどです。今回はこのユースケースをマークルツリーを使って実装したいと思います。
+NFT Project ではよく「特定のアドレスの人だけが実行できる関数」を実装したくなります。例えば別のプロジェクトの NFT を保持してる人だけにこの NFT を mint させたいなどです。今回はこのユースケースをマークルツリーを使って実装します。
 
 なお、マークルツリー自体は暗号理論において有名なものなのでこの記事の中では実装例を主に記述します。
 
@@ -46,7 +46,7 @@ contract MyERC721 is ERC721URIStorage, Ownable {
 }
 ```
 
-mint 関数にて `ERC721URIStorage` の `_mint` を叩いています。これだけで mint をすることは可能ですね。
+mint 関数にて `ERC721URIStorage` の `_mint` を叩いています。これだけで mint が可能です。
 
 ではこの mint 関数を特定の人だけが叩ける関数へ実装を変更します。まず import 部で `@openzeppelin/contracts/utils/cryptography/MerkleProof.sol` と `@openzeppelin/contracts/access/Ownable.sol` を import してきます。
 
@@ -65,7 +65,7 @@ Ownable は ownership を持っているアドレスからしかその関数を�
 + contract MyERC721 is ERC721URIStorage, Ownable {
 ```
 
-続いてマークルツリーの RootHash を保持するための変数を用意します。このように変数を持って後から setter を実装しなくても要件を達成することはできますが一度デプロイしたコントラクトの中を新しい hash に変えることができなくなるため、運用上で後から漏れていた人を AllowList に追加するなどができなくなります。
+続いてマークルツリーの RootHash を保持するための変数を用意します。このように変数を持って後から setter を実装しなくても要件を達成できますが一度デプロイしたコントラクトの中を新しい hash に変えることができなくなるため、運用上で後から漏れていた人を AllowList に追加するなどができなくなります。
 
 ```diff
     using Counters for Counters.Counter;
@@ -184,7 +184,7 @@ AllowList を作ります。
 const allowList = [allowListedUser.address];
 ```
 
-マークルツリーの構築を行います。
+マークルツリーの構築します。
 
 ```ts
 const merkleTree = new MerkleTree(allowList.map(keccak256), keccak256, {
@@ -194,7 +194,7 @@ const merkleTree = new MerkleTree(allowList.map(keccak256), keccak256, {
 
 今回、単純なアドレスのリストを AllowList にしていますが、もしその中でもこの人は max 1 つしか mint できない。などアドレス別に登録しておきたい情報がある場合は `allowList.map(keccak256)` の map の中で単純にアドレスに対して keccak256 をあてるだけでなく amount などの情報も含めて keccak256 を当てるようにする必要があります。
 
-次に hexProof を作ります。これは特定のアドレスの hex を取得しこれをコントラクトの mint 関数にいれることでコントラクト側でこのユーザーが AllowList にあるかどうかを計算します。
+次に hexProof を作ります。これは特定のアドレスの hex を取得しこれをコントラクトの mint 関数にいれることでコントラクトが AllowList にあるかどうかを計算します。
 
 ```ts
 const hexProof = merkleTree.getHexProof(keccak256(allowListedUser.address));
