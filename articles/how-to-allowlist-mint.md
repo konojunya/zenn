@@ -4,6 +4,7 @@ emoji: "🌲"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["nft", "merkletree"]
 published: true
+publication_name: "microverse_dev"
 ---
 
 NFT Project ではよく「特定のアドレスの人だけが実行できる関数」を実装したくなります。例えば別のプロジェクトの NFT を保持してる人だけにこの NFT を mint させたいなどです。今回はこのユースケースをマークルツリーを使って実装します。
