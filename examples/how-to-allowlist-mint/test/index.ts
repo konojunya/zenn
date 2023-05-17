@@ -4,6 +4,7 @@ import ChaiAsPromised from "chai-as-promised";
 import { ethers } from "hardhat";
 import keccak256 from "keccak256";
 import { MerkleTree } from "merkletreejs";
+import type { MyERC721 } from "../typechain-types";
 
 chai.use(ChaiAsPromised);
 
@@ -15,11 +16,11 @@ describe("MyERC721", () => {
 
     const [owner, allowListedUser, notListedUser] = await ethers.getSigners();
     const allowList = [allowListedUser.address];
-    const contract = await loadFixture(deployContractFixture);
+    const contract = (await loadFixture(deployContractFixture)) as MyERC721;
     const merkleTree = new MerkleTree(allowList.map(keccak256), keccak256, {
       sortPairs: true,
     });
-    const hexProof = merkleTree.getHexProof(keccak256(allowList[0]));
+    const hexProof = merkleTree.getHexProof(keccak256(allowListedUser.address));
     const rootHash = merkleTree.getRoot();
 
     await contract
