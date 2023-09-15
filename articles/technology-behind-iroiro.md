@@ -1,8 +1,8 @@
 ---
 title: "IROIRO Remixを支える技術"
-emoji: "💫"
+emoji: "🌈"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ["nft"]
+topics: ["nft", "ブロックチェーン", "Solidity"]
 published: true
 publication_name: "microverse_dev"
 ---
