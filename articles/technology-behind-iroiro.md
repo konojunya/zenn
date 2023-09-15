@@ -3,7 +3,7 @@ title: "IROIRO Remixを支える技術"
 emoji: "💫"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["nft"]
-published: false
+published: true
 publication_name: "microverse_dev"
 ---
 
@@ -232,10 +232,10 @@ proof の取得などは [swr](https://swr.vercel.app/ja) を使っています�
 
 ![kiwi icon](https://i.seadn.io/gcs/files/52da1f847f222edf5d3e7b7d7fd056f3.png?auto=format&dpr=2&w=800)
 
-Hi! I'm Kiwi!
-I've been a dev in crypto since falling in love with Ethereum in 2017, I even worked for Ethereum towards the Proof of Stake and Merge effort for 2 years!
-Nowadays I work closely with hundreds of anime artists as a I lead the teams of uwucrew and Killer GF.
-I'm a huge fan of anime art and believe collecting anime art is something every anime fan can truly enjoy!
+> Hi! I'm Kiwi!
+> I've been a dev in crypto since falling in love with Ethereum in 2017, I even worked for Ethereum towards the Proof of Stake and Merge effort for 2 years!
+> Nowadays I work closely with hundreds of anime artists as a I lead the teams of uwucrew and Killer GF.
+> I'm a huge fan of anime art and believe collecting anime art is something every anime fan can truly enjoy!
 
 IROIRO Remix ではコントラクトの実装を担当していただき、記事ではコントラクトの設計についてインタビューさせていただきました。
 
@@ -243,8 +243,6 @@ IROIRO Remix ではコントラクトの実装を担当していただき、記�
 
 ![joanna icon](https://i.seadn.io/gcs/files/39edb50ed019572a119f4cb0ba826bb5.png?auto=format&dpr=2&w=800)
 
-IROIRO のコラボマネージャー。
-
-複数の人気 NFT プロジェクトの運営に携わり、英語・中国語を生かした海外ファンとのコミュニケーションを得意とする。
+> IROIRO のコラボマネージャー。複数の人気 NFT プロジェクトの運営に携わり、英語・中国語を生かした海外ファンとのコミュニケーションを得意とする。
 
 本記事の和訳を担当していただきました。
