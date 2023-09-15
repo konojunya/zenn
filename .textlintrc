@@ -6,10 +6,7 @@
   },
   "rules": {
     "preset-ja-technical-writing": {
-        "no-exclamation-question-mark": {
-          "allowFullWidthExclamation": true,
-          "allowFullWidthQuestion": true,
-        },
+        "no-exclamation-question-mark": false,
         "no-doubled-joshi": {
            "strict": false,
            "allow": ["か"], // 助詞のうち「か」は複数回の出現を許す(e.g.: するかどうか)
@@ -17,8 +14,8 @@
     },
     "preset-ja-spacing": {
       "ja-space-between-half-and-full-width": {
-        space: "always",
-        exceptPunctuation: true,
+        "space": "always",
+        "exceptPunctuation": true
       },
       "ja-space-around-code": {
         "before": true,
@@ -26,8 +23,8 @@
       }
     },
     "ja-technical-writing/ja-no-mixed-period": {
-      "allowPeriodMarks": [":"],
+      "allowPeriodMarks": [":"]
     },
     "ja-technical-writing/sentence-length": false
-  },
+  }
 }

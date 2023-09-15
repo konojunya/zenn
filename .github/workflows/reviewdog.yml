@@ -1,17 +1,26 @@
 name: reviewdog
+
 on: [pull_request]
+
 jobs:
   textlint:
     name: textlint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
       - name: deps install
-        run: yarn --frozen-lockfile 
+        run: bun install --frozen-lockfile
+
       - uses: reviewdog/action-setup@v1
         with:
           reviewdog_version: latest
+
       - name: lint
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: yarn lint -f checkstyle | reviewdog -f=checkstyle -name=textlint -reporter=github-pr-review -level=warning
+        run: bun lint -f checkstyle | reviewdog -f=checkstyle -name=textlint -reporter=github-pr-review -level=warning

@@ -9,12 +9,15 @@
     "textlint": "^12.2.4",
     "textlint-rule-preset-ja-spacing": "^2.2.0",
     "textlint-rule-preset-ja-technical-writing": "^7.0.0",
-    "zenn-cli": "^0.1.134"
+    "zenn-cli": "^0.1.144"
   },
   "scripts": {
     "new:article": "zenn new:article",
     "new:book": "zenn new:book",
     "preview": "zenn preview",
     "lint": "textlint './@(books|articles)/**'"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.3"
   }
 }
