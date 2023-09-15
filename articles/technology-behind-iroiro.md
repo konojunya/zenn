@@ -17,7 +17,7 @@ https://www.iroiro.world
 
 ![](https://storage.googleapis.com/zenn-user-upload/d6e8b2804584-20230831.jpg)
 
-NFT のプロジェクトでは色んな手法で NFT の画像自体の生成を行なっています。IROIRO では一般的な最も一般的な方法ですがレイヤー別に切り出した各パーツを組み合わせることで数千のパターン数の画像の生成をしています。
+NFT のプロジェクトでは色んな手法で NFT の画像自体の生成を行なっています。IROIRO では最も一般的な方法ですがレイヤー別に切り出した各パーツを組み合わせることで数千のパターン数の画像の生成をしています。
 
 ![](https://storage.googleapis.com/zenn-user-upload/3f520ca2020f-20230831.png)
 
