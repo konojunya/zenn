@@ -3,10 +3,14 @@ title: "OpenAIを使って分析を楽にさせる"
 emoji: "🤖"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["openai"]
-published: false
+published: true
 ---
 
 # 背景
+
+Twitter で予想外にいいねをたくさん頂いていたため解説記事として出します。
+
+https://twitter.com/konojunya/status/1714204469754478637?s=20
 
 OpenAI の API を活用してその会社のサービスに沿った SQL を返してくれる slack bot を開発しました。主に「OpenAI の API でものを作ってみたい人」「slack bot を簡単に開発したいと思っている人」「Cloudflare Workers に手を出したいと思っている人」などが対象の記事です。
 
@@ -225,3 +229,206 @@ https://github.com/konojunya/sql-generator
 またリポジトリでも実装していませんが、 `ask` の `messages` には文脈がのるので Cloudflare Workers を使っているならそのまま D1 などを利用してやり取りを保存することで精度の向上が見込めるでしょう。
 
 # slack bot
+
+slack bot と言えば、[Bolt](https://slack.dev/bolt-js/ja-jp/tutorial/getting-started) を使うのが多いと思われます。しかし最近の開発では [automation](https://api.slack.com/automation) と呼ばれているやり方で slack の cloud 上にデプロイができるものをよく使っています。 slack cli から簡単にプロジェクトが作れたり、コードをデプロイ出来たりするので bot 開発がとても楽になりました。また Deno の環境で動くため TypeScript の型をゴリゴリ使って実装可能です。
+
+まずはプロジェクトを作成します。slack cli か GUI から作成してください。 cli からだと [`slack create`](https://api.slack.com/automation/cli/commands#create) で作成できます。アプリを追加すると以下のようなディレクトリが作られます。
+
+```.slack/apps.json
+{
+  "apps": {
+    "<org name>": {
+      "name": "app name",
+      "app_id": "xxxxxx",
+      "team_id": "xxxxxx",
+      "IsDev": false
+    }
+  },
+  "default": "<org name>"
+}
+```
+
+slack cli は `slack login` で認証でき、特定のコマンドを実行すると OTP が発行され、OTP を cli に入力することで認証が完了します。
+
+slack の automation において最重要なのは `manifest.ts` というファイルです。これがこのアプリの設定のファイルになります。
+
+```ts
+import {Manifest} from "deno-slack-sdk/mod.ts";
+
+export default Manifest({
+  name: "bot name",
+  displayName: "bot-name",
+  description: "description",
+  icon: "assets/icon.png",
+  workflows: [],
+  outgoingDomains: [<先ほど deploy した cloudflare workers の origin>],
+  botScopes: [
+    "app_mentions:read",
+    "chat:write",
+  ],
+});
+```
+
+この設定で、bot の基礎が完成します。 `name` は slack に表示される名前、 `displayName` は `@bot-name` で呼ぶ時の名前になります。また `icon` は `assets/icon.png` としていますが、同じプロジェクトの画像の path を指定してください。今回は `@bot 総ユーザー数を教えて` などとメッセージするとそのメッセージのスレッドに対して回答してくれる bot を作成したいと考えているため、 bot の scope には `app_mentions:read` と `chat:write` が必要になります。
+
+アプリを作るために今回は `sql_generate` というディレクトリを作ります。
+
+```ts:sql_generate/index.ts
+import {DefineWorkflow, Schema} from "deno-slack-sdk/mod.ts";
+
+export const workflow = DefineWorkflow({
+  callback_id: "sql_generate_workflow",
+  title: "SQL Generate Workflow",
+  input_parameters: {
+    properties: {
+      channel_id: { type: Schema.types.string },
+      thread_ts: { type: Schema.types.string },
+      prompt: { type: Schema.types.string },
+    },
+    required: ["channel_id", "thread_ts", "prompt"]
+  }
+});
+```
+
+まず workflow を定義します。ここに step を追加していくことでこの workflow がトリガーされた際、順番に処理を行うことになります。
+
+step の追加は後にして、先にトリガーを作成します。
+
+```ts:sql_generate/index.ts
+import {Trigger} from "deno-slack-api/types.ts";
+
+const trigger: Trigger<typeof workflow.definition> = {
+  type: "event", // mention というイベントのため。その他に webhook などいくつか存在するがやりたいことに合わせて設定する。
+  name: "sql generate trigger",
+  workflow: `#/workflows/${workflow.definition.callback_id}`,
+  inputs: {
+    channel_id: {value: "{{data.channel_id}}"},
+    thread_ts: {value: "{{data.message_ts}}"}, // メッセージを一意に決めるためのもの
+    prompt: {value: "{{data.text}}"}, // 送られてきた本文
+  },
+  event: {
+    event_type: "slack#/events/app_mentioned",
+    channel_ids: ["xxxx", "yyyy"], // この workflow が使えるチャンネルを設定する必要がある。最大20個
+  }
+};
+
+export default trigger;
+```
+
+workflow を実装したので `manifest.ts` にも加えましょう。
+
+```diff
+import {Manifest} from "deno-slack-sdk/mod.ts";
++ import {workflow} from "./sql_generate/index.ts";
+
+export default Manifest({
+  name: "bot name",
+  displayName: "bot-name",
+  description: "description",
+  icon: "assets/icon.png",
+-  workflows: [],
++  workflows: [workflow]
+  outgoingDomains: [<先ほど deploy した cloudflare workers の origin>],
+  botScopes: [
+    "app_mentions:read",
+    "chat:write",
+  ],
+});
+```
+
+workflow の設定が終われば一旦 deploy をしてしまいましょう。
+
+```shell
+slack deploy
+```
+
+deploy したら trigger の登録します。trigger の登録は少しややこしいコマンドになってますが help などを見ながら進められるとよいでしょう。
+
+```shell
+slack triggers create --trigger-def ./sql_generate/index.ts
+```
+
+これでトリガーの登録も完了しました。しかしまだ workflow の step を追加していません。最後にこの step を追加すれば slack 上から OpenAI の API を Cloudflare Workers 越しに叩くことができます。
+
+```ts:sql_generate/function.ts
+import {DefineFunction, Schema, SlackFunction} from "deno-slack-sdk/mod.ts";
+
+export const SqlGenerateFunctionDefinition = DefineFunction({
+  callback_id: "sql_generate_function",
+  title: "SQL Generate Function",
+  source_file: "sql_generate/function.ts", // manifest.ts から見て自分自身のファイルの path を記述する
+  input_parameters: {
+    properties: {
+      channel_id: {type: Schema.types.string},
+      thread_ts: {type: Schema.types.string},
+      prompt: {type: Schema.types.string},
+    },
+    required: ["channel_id", "thread_ts", "prompt"],
+  },
+});
+
+export default SlackFunction(SqlGenerateFunctionDefinition, async ({inputs, client}) => {
+  const {channel_id, thread_ts, prompt} = inputs;
+
+  // 一旦 slack へメッセージを送る。loading 状態をユーザーに認知させるため
+  await client.chat.postMessage({
+    channel: channel_id,
+    text: "SQLを考えています...",
+    thread_ts,
+  });
+
+  // 先ほどの cloudflare から gpt の返答を待ってレスポンスを得る
+  const res = await fetch("<cloudflare workers の origin>", {
+    method: "POST",
+    body: prompt,
+  });
+
+  if(!res.ok) {
+    const err = await res.text();
+
+    // エラーがあった場合、その旨をメッセージに載せる
+    await client.chat.postMessage({
+      channel: channel_id,
+      text: "エラーが発生しました",
+      thread_ts,
+    });
+
+    return {outputs: {err}};
+  }
+
+  const {message} = await res.json();
+
+  // gpt が回答した文章をそのまま postMessage する
+  await client.chat.postMessage({
+    channel: channel_id,
+    text: message,
+    thread_ts,
+  });
+
+  return {outputs: {}};
+});
+```
+
+function の実装をしたら、 workflow に step として追加します。
+
+```ts:sql_generate/index.ts
+workflow.addStep(SqlGenerateFunctionDefinition, {
+  channel_id: workflow.inputs.channel_id,
+  thread_ts: workflow.inputs.thread_ts,
+  prompt: workflow.inputs.prompt,
+});
+```
+
+これで全ての実装ができました。再度 slack にデプロイすればテストを行いましょう。
+
+```shell
+slack deploy
+```
+
+![](https://storage.googleapis.com/zenn-user-upload/bf5b8677425e-20231018.jpeg)
+
+これで SQL に自信がなくても分析したいと思ったタイミングで SQL を発行できるようになりました。
+
+# outro
+
+今現状返ってくる SQL はそのまま postgres など DB client で実行すればうまく動きますが Big Query などに貼り付けても動かない SQL になっていたりします。ここは prompt の時点でもう少し細かく指定をしてチューニングしたり、 SQL を発言者に対して答えるだけなのでその文章の中でうまく伝えるのが改善点でしょう。
