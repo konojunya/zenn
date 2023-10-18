@@ -2,7 +2,7 @@
 title: "OpenAIを使って分析を楽にさせる"
 emoji: "🤖"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ["openai"]
+topics: ["openai","slack","cloudflare"]
 published: true
 ---
 
