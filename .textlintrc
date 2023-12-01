@@ -23,7 +23,9 @@
       }
     },
     "ja-technical-writing/ja-no-mixed-period": {
-      "allowPeriodMarks": [":"]
+      "allowPeriodMarks": [":"],
+      "allowEmojiAtEnd": true,
+      "forceAppendPeriod": true
     },
     "ja-technical-writing/sentence-length": false
   }
