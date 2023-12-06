@@ -114,7 +114,7 @@ serve(
 INGRESS のリクエストを捌く Proxy サーバーを実装します。今回は nginx での実装を例にします。設定としては `:8080` ポートで nginx を建ててリクエストを `:8888` に流すだけになります。
 
 :::message
-`host.docker.internal` となっていますが、これはのちに手元で動きを見るときに Docker for Mac などで立ち上げたコンテナは hostname に `host.docker.internal` で振られるためこの設定にしています。Cloud Run などで動かす際には単純に `127.0.0.1` になるので気をつけてください。
+`host.docker.internal` となっていますが、手元で動きを確認する際 Docker for Mac などで立ち上げたコンテナは hostname に `host.docker.internal` で振られるためこの設定をしています。Cloud Run などで動かす際には `127.0.0.1` になるので気をつけてください。
 :::
 
 ```conf:proxy/nginx.conf
@@ -175,7 +175,7 @@ docker compose up
 
 Google Cloud で扱うのはコンテナイメージを保存する場所として [Artifact Registry](https://cloud.google.com/artifact-registry?hl=ja)、そして [Cloud Run](https://cloud.google.com/run?hl=ja) の環境を作ります。
 
-コンソールから作っても良いですが、コードになっていればそれをベースにコンソールからも作れると思うので今回は全て Terraform による記述で実装します。
+コンソールから作っても良いですが、コードになっていればそれをベースにコンソールから操作できるので、今回は全て Terraform による記述で実装します。
 
 Terraform を実行するのは application-default に設定されている IAM や Service Account になるため適宜ログインしておいてください。サンプルで作る程度に抑えたいので今回は僕自身のアカウント（IAM）で全て手元のコンピュータから Terraform を実行します。そのため Service Account やそれを GitHub Actions でどう使うかなどは別の記事などを参考にしてください。
 
@@ -213,7 +213,7 @@ provider "google-beta" {
 
 ### Artifact Registry
 
-Artifact Registry の設定は以下のようにします。単純な Docker のイメージを sample という名前で管理しています。cleanup policy は適当にしてるので適宜自分のプロジェクトの設定に合わせていただければと思います。
+Artifact Registry の設定は以下のようにします。単純な Docker のイメージを sample という名前で管理しています。cleanup policy は適当にしてるので適宜自分のプロジェクトの設定に合わせてください。
 
 ```tf:terraform/main.tf
 resource "google_artifact_registry_repository" "sample" {
@@ -275,11 +275,11 @@ resource "google_cloud_run_v2_service" "sample" {
 
 `traffic` に関してもリリースしたものに対して 100%のトラフィックを向けるだけに設定しています。詳しい設定は [こちら](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/cloud_run_v2_service#nested_traffic) から参照ください。
 
-`template` ですが `scaling` はオートスケーリングの設定なのでマルチコンテナと関係なく存在します。今回は平常時 0、max で 1 台にしています。個人ブログなどはランニングコストをかけたくないのでオートスケーリングの設定を正しく行いましょう。サービス運営の場合は min に 1 やトラクションが大きく出てる場合は 2,3 となると思います。
+`template` ですが `scaling` はオートスケーリングの設定なのでマルチコンテナと関係なく存在します。今回は平常時 0、max で 1 台にしています。個人ブログなどはランニングコストをかけたくないのでオートスケーリングの設定を正しく行いましょう。サービス運営の場合は min に 1 やトラクションが大きく出てる場合は 2,3 などになるでしょう。
 
 まずは single container なので `containers` が 1 つ存在します。 name はコンテナ名、image には Artifact Registry のコンテナを指します。ports で Cloud Run の ingress のポートを設定できます。今回はデフォルトである `8080` に設定しました。
 
-今回は ingress container は nginx になるためマルチコンテナの設定に書き換えていきます。 template の containers として proxy を追加します。
+今回 ingress container は nginx になるためマルチコンテナの設定に書き換えていきます。 template の containers として proxy を追加します。
 
 ```tf:terraform/main.tf
 containers {
@@ -401,7 +401,7 @@ COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 
 ## マルチコンテナで Cache-Control 制御
 
-Cache-Control を nginx 側で付与するように変更します。これにより `middleware.ts` の match などを使いながら設定しなくても path ベースで Cache-Control を変更できます。これによりアプリケーションの再デプロイを行わなくても ingress container の Artifact Registry へのデプロイとそのバージョンを使うように Cloud Run のリビジョンの変更をするだけにフローを改善できます。アプリケーションのビルドには時間がかかりがちですが、 `Cache-Control` を少し触りたいとかレスポンスヘッダーを少し変更したいパターンに対して運用上のコストも下げれるのではと筆者は考えています。
+Cache-Control を nginx 側で付与するように変更します。これにより `middleware.ts` の match などを使いながら設定しなくても path ベースで Cache-Control を変更できます。これによりアプリケーションの再デプロイを行わなくても ingress container の Artifact Registry へのデプロイとそのバージョンを使うように Cloud Run のリビジョンの変更をするだけにフローを改善できます。アプリケーションのビルドには時間がかかりがちですが、 `Cache-Control` を少し触りたいとかレスポンスヘッダーを少し変更したいパターンに対して運用上のコストも下げられるのではと筆者は考えています。
 
 ```diff:proxy/nginx.conf
 server {
