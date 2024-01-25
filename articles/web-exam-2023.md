@@ -126,7 +126,7 @@ https://developer.mozilla.org/ja/docs/Web/API/Storage_Access_API
 
 https://blog.jxck.io/entries/2023-12-14/partitioning.html
 
-3rd party cookie は前職で ITP の制限が厳しくなってきた時点で結構触ったり、ちょうど今月から Chrome のユーザー 1% に対して deprecate が施行されるということで話題にあがったりしてたので復習していたのでワードが頭に入っていたのがよかった。Privacy Sandbox むずすぎる。
+3rd party cookie は前職で ITP の制限が厳しくなってきた時点で結構触ったり、ちょうど今月から Chrome のユーザー 1% に対して deprecate が施行されるということで話題にあがったりしてたため、復習した事でワードが頭に入っていたのがよかった。Privacy Sandbox むずすぎる。
 
 直近で一緒に 2 時間ほど 3rd party cookie について議論してくれた[元同僚](https://twitter.com/__yoshi_dev)に感謝。
 
