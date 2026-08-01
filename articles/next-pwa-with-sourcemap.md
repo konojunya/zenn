@@ -6,6 +6,7 @@ topics: ['serviceworker', 'pwa', 'nextjs', 'sourcemap']
 published: true
 ---
 
+
 sourcemap を作ってる場合に [next-pwa](https://github.com/shadowwalker/next-pwa) をそのまま使うとエラーになるのでその原因と対処法を記事にします。
 
 # 原因

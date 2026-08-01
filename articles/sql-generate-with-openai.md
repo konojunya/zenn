@@ -6,6 +6,7 @@ topics: ["openai","slack","cloudflare"]
 published: true
 ---
 
+
 # 背景
 
 Twitter で予想外にいいねをたくさん頂いていたため解説記事として出します。

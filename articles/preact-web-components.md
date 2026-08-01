@@ -6,6 +6,7 @@ topics: ["preact", "webcomponents", "shadowdom"]
 published: true
 ---
 
+
 Preact を使って作ったコンポーネントを Web Components として誰でも使えるように実装してみます。
 
 # Preact とは

@@ -6,6 +6,7 @@ topics: ["go", "gemini", "gc24"]
 published: true
 ---
 
+
 # Intro
 
 この記事は 2024/01/29 に行われた[「【Go x Gemini】2024年Gemini APIを使ってみよう 2days Event」](https://gdg-tokyo.connpass.com/event/307689/)で紹介されていた Go の実装を元に Gemini が画像の認識ができることは理解したので、特定のゲームのルールを理解しているかを試してみた記事になります。

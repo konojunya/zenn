@@ -6,6 +6,7 @@ topics: ["cloudflare", "zerotrust", "terraform"]
 published: true
 ---
 
+
 # モチベーション
 
 社内の人向けや、外部の関係者に対してだけ特定の Web ページを見せたいような要件に対して Cloudflare Zero Trust で保護をしたいタイミングがあり、とても便利でしたが体系的な記事が少ないように思えるので執筆します。

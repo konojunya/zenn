@@ -7,6 +7,7 @@ published: true
 publication_name: "microverse_dev"
 ---
 
+
 [Azuki](https://azuki.com) が 2022/10/17 に発表した新しい NFT の規格「Physical Backed Token」について深掘りしていきます。
 
 ![](https://static.looksnice.org/0x6853449a65b264478a4cD90903A65F0508441aC0/0x614d9f791a70c53370501b3753e8c882b0c38119a916db949e025c7340784c2f)

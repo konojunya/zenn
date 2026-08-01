@@ -7,6 +7,7 @@ published: true
 publication_name: "microverse_dev"
 ---
 
+
 NFT を作成する際にその中でも、 JavaScript でアニメーションを描いたりしてインタラクティブなものを作成することがあります。今回はそのような事例の際に気をつけないといけない点を紹介します。
 
 # Pinata とは

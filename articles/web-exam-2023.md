@@ -6,6 +6,7 @@ topics: ["web", "css", "javascript", "cookie", "baseline"]
 published: true
 ---
 
+
 2023 年の web 技術の振り返りとして [Web 技術年末試験 2023](https://web-study.connpass.com/event/308040/) に参加した。
 
 この記事は解法や試験の問題について詳しく解説することはせず、自分がどのように考えてどのツールを使って検索したかを記述しておく。
