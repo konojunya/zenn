@@ -15,9 +15,11 @@ ChatGPT の Developer Mode から MCP tool を呼び、OAuth で接続したサ�
 実装は GitHub の [chatgpt-oauth-example](https://github.com/konojunya/chatgpt-oauth-example) で公開しています。
 コード例は、動作確認に使った [515b6a0 時点の実装](https://github.com/konojunya/chatgpt-oauth-example/tree/515b6a0e4fb623bc76d24a4b00edde32bd03faaa) から説明に必要な行だけを抜粋しています。
 
-> この実装は ChatGPT との接続に必要な機能を確認するための検証用サーバーです。
-> OpenAI は、公開アプリでは実績のある Identity Provider を使うように推奨しています。
-> 本番の Authorization Server としては使わないでください。
+:::message alert
+この実装は ChatGPT との接続に必要な機能を確認するための検証用サーバーです。
+OpenAI は、公開アプリでは実績のある Identity Provider を使うように推奨しています。
+本番の Authorization Server としては使わないでください。
+:::
 
 ## ChatGPT から認証済みプロフィールを取得する
 
