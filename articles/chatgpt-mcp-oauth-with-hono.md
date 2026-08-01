@@ -1,26 +1,28 @@
 ---
-title: "ChatGPT Plugin で OAuth を実装する"
+title: "ChatGPT Plugin で OAuth 認証したアカウント情報を取得する"
 emoji: "🔐"
 type: "tech"
 topics: ["chatgpt", "mcp", "oauth", "hono", "cloudflare"]
 published: false
 ---
 
-ChatGPT の Developer Mode から保護された MCP tool を呼ぶと、接続カード、OAuth の同意画面、callback、tool の再実行が一続きで動きます。
+ChatGPT の Developer Mode から MCP tool を呼び、OAuth で接続したサービスのアカウント情報を取得して Widget に表示するアプリを実装しました。
 
-画面だけを追っていると、ChatGPT と MCP server のどちらが何をしているのかを見失います。
-そこで、OAuth 2.1 を学ぶための Authorization Server と Resource Server を Hono で実装し、ChatGPT が送る request を Cloudflare Workers のログで確認しました。
+未接続の会話では接続カードと同意画面を表示し、認可後は元の tool を Bearer token 付きで再実行します。
+この記事の対象は OAuth protocol の解説ではなく、ChatGPT が保護された tool を見つけ、token に紐づくアカウントを取得し、その結果を会話と Widget へ返す実装です。
+一連の動作を再現するため、Authorization Server と Resource Server を Hono で実装し、ChatGPT が送る request を Cloudflare Workers のログで確認しました。
 
 実装は GitHub の [chatgpt-oauth-example](https://github.com/konojunya/chatgpt-oauth-example) で公開しています。
 コード例は、動作確認に使った [515b6a0 時点の実装](https://github.com/konojunya/chatgpt-oauth-example/tree/515b6a0e4fb623bc76d24a4b00edde32bd03faaa) から説明に必要な行だけを抜粋しています。
 
-> この実装は OAuth の責務を観察するための教材です。
+> この実装は ChatGPT との接続に必要な機能を確認するための検証用サーバーです。
 > OpenAI は、公開アプリでは実績のある Identity Provider を使うように推奨しています。
 > 本番の Authorization Server としては使わないでください。
 
-## 作ろうとした認証体験
+## ChatGPT から認証済みプロフィールを取得する
 
-確認したかったのは、保護された tool から OAuth が始まる次の流れです。
+`get_private_profile` を呼んだユーザーが未接続なら OAuth を開始し、接続後は token に紐づくプロフィールを返します。
+実装した操作の流れは次のとおりです。
 
 1. ChatGPT の tool menu から Developer Mode アプリを選ぶ。
 2. 「現在接続しているアカウントのプロフィールを取得して」と依頼する。
@@ -49,7 +51,7 @@ Hono アプリは、次の 2 つを同じ origin で提供します。
 - **Resource Server**：`/mcp` を公開し、Bearer token と scope を検証して tool を実行する。
 
 ログイン認証も別の責務です。
-この教材は `demo-user` がログイン済みだと仮定し、ユーザー認証を実装していません。
+このサンプルは `demo-user` がログイン済みだと仮定し、ユーザー認証を実装していません。
 実サービスでは、同意画面を開く前にログイン session を検証し、認可するユーザーを確定させる必要があります。
 
 ```mermaid
@@ -91,7 +93,7 @@ sequenceDiagram
 ローカルと D1 で repository interface を共有し、保存先だけを差し替えました。
 OAuth の service 層は Cloudflare Workers の API に依存していないため、Bun の `app.fetch` だけで E2E test を実行できます。
 
-## OAuth endpoint を discovery から組み立てる
+## ChatGPT に認可 endpoint を知らせる
 
 ChatGPT は、最初から認可 endpoint の場所を知っているわけではありません。
 MCP server の **Protected Resource Metadata** を読み、そこから **Authorization Server Metadata** を取得します。
@@ -125,11 +127,11 @@ app.get("/.well-known/oauth-authorization-server", (c) =>
 );
 ```
 
-この例は、ChatGPT が接続ごとに public client を登録する **Dynamic Client Registration（DCR）** を実装しています。
+この例では、ChatGPT が接続ごとに public client を登録できるように **Dynamic Client Registration（DCR）** を実装しています。
 DCR の request で受け取った redirect URI を保存し、authorize endpoint と token endpoint の両方で完全一致を要求します。
 
 現在の OpenAI ドキュメントは、Authorization Server が対応できる場合には Client ID Metadata Documents（CIMD）を推奨しています。
-この教材で DCR を選んだ理由は、client 登録から token 交換までを自分のコードで追えるためです。
+今回の Worker は DCR の registration endpoint を公開し、ChatGPT が送る client 登録 request を受け付ける構成にしました。
 
 ChatGPT が使う metadata と OAuth flow は、OpenAI の [Authentication](https://developers.openai.com/plugins/build/auth) にまとまっています。
 
@@ -193,34 +195,10 @@ function authenticationRequired(config: AppConfig, description: string) {
 OpenAI の認証ドキュメントでも、tool 単位の OAuth UI には metadata と runtime challenge の両方が必要だと説明されています。
 server が HTTP 401 を返す通常の Resource Server と、JSON-RPC の tool result で challenge を返す MCP tool を混同しないようにしました。
 
-## PKCE と token を保存する境界
+## access token とアカウントを結び付ける
 
-authorize endpoint では、登録済み client、redirect URI、`resource`、scope、PKCE S256 を検証します。
-`resource` を token の利用先として固定すると、別の Resource Server 向けに発行した token の流用を拒否できます。
-
-```ts:src/oauth/service.ts
-if (!client.redirectUris.includes(request.redirect_uri)) {
-  throw new OAuthError(
-    "invalid_request",
-    "redirect_uri が登録値と完全一致しません。",
-  );
-}
-
-if (
-  request.code_challenge_method !== "S256" ||
-  !/^[A-Za-z0-9_-]{43}$/u.test(request.code_challenge)
-) {
-  throw new OAuthError(
-    "invalid_request",
-    "PKCE S256 の code_challenge が必要です。",
-  );
-}
-
-this.assertResource(request.resource);
-```
-
-認可 code、access token、refresh token の生値は database へ保存していません。
-保存するのは SHA-256 hash、client ID、user ID、scope、resource、期限です。
+`get_private_profile` が返すアカウントは tool の引数ではなく、access token に保存した user ID から決まります。
+authorize endpoint で同意したユーザーを認可 code に保存し、token endpoint で同じ user ID を access token へ引き継ぎます。
 
 ```ts:src/oauth/service.ts
 const rawCode = createOpaqueToken("code");
@@ -239,37 +217,99 @@ await this.repository.saveAuthorizationCode({
 });
 ```
 
-token endpoint では `code_verifier` から S256 challenge を作り直し、認可時の値と比較します。
-認可 code は一度だけ消費し、refresh token も再利用できないように rotation します。
+MCP request を受け取ると、Bearer token の hash で token record を検索します。
+期限、失効状態、利用先の `resource` を検証した後、record の user ID からアカウントを取得します。
 
-SQLite では transaction、D1 では conditional update と `batch()` を使い、同じ code が同時交換された場合にも一方だけが token pair を発行できるようにしました。
+```ts:src/oauth/service.ts
+async authenticateAccessToken(rawToken: string): Promise<AccessIdentity | null> {
+  const record = await this.repository.getAccessToken(
+    await hashSecret(rawToken),
+  );
+  const now = this.now();
 
-## profile を Widget に渡す
+  if (
+    !record ||
+    record.revokedAt !== null ||
+    record.expiresAt <= now ||
+    record.resource !== this.config.resource
+  ) {
+    return null;
+  }
 
-OAuth が成功したことを文字列だけで返しても、ChatGPT 内の UI がどこから来たのかは見えません。
-そこで、`get_private_profile` と `ui://profile/profile-v1.html` を関連付けました。
+  const user = await this.repository.getUser(record.userId);
+  if (!user) return null;
 
-tool handler は access token を検証した後、Widget に必要な profile だけを `structuredContent` へ入れます。
+  return {
+    token: rawToken,
+    clientId: record.clientId,
+    user,
+    scopes: record.scope.split(" "),
+    expiresAt: record.expiresAt,
+    resource: record.resource,
+  };
+}
+```
+
+ChatGPT から `get_private_profile` へ user ID を渡さなくても、Bearer token だけで接続中のアカウントを特定できます。
+
+## token に紐づくプロフィールを Widget に渡す
+
+`get_private_profile` は、このアプリで認証済みの情報を取得する処理です。
+`/mcp` が受け取った Bearer token を database で検証し、検証済みの `AuthInfo` だけを MCP handler へ渡します。
+
+```ts:src/app.ts
+const authInfo = await authenticateRequest(c.req.raw, oauth);
+
+const response = await mcp.fetch(incomingRequest, {
+  ...(authInfo ? { authInfo } : {}),
+  parsedBody,
+});
+```
+
+tool handler は `profile.read` scope を確認し、`AuthInfo` の user ID でアカウントを取得します。
+prompt や tool の引数に user ID を含めないため、tool input から別のアカウントは指定できません。
+ChatGPT の返答に使う `content` と Widget に渡す `structuredContent` は、同じ検証済みユーザーから組み立てます。
 Widget に access token を渡さない構成です。
 
 ```ts:src/mcp/server.ts
-return {
-  content: [
-    {
-      type: "text",
-      text: `${user.displayName} (${user.email}) のプロフィールです。`,
+async function getPrivateProfile(
+  service: OAuthService,
+  config: AppConfig,
+  context: ServerContext,
+) {
+  const authInfo = context.http?.authInfo;
+  const authError = checkProfileAuthorization(authInfo);
+  if (authError) return authenticationRequired(config, authError);
+
+  const userId = authInfo?.extra?.userId;
+  if (typeof userId !== "string") {
+    return authenticationRequired(config, "token に user identity がありません。");
+  }
+  const user = await service.getUser(userId);
+  if (!user) {
+    return authenticationRequired(config, "token の user が存在しません。");
+  }
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `${user.displayName} (${user.email}) のプロフィールです。`,
+      },
+    ],
+    structuredContent: {
+      profile: {
+        id: user.id,
+        displayName: user.displayName,
+        email: user.email,
+      },
+      scope: "profile.read",
     },
-  ],
-  structuredContent: {
-    profile: {
-      id: user.id,
-      displayName: user.displayName,
-      email: user.email,
-    },
-    scope: "profile.read",
-  },
-};
+  };
+}
 ```
+
+取得結果を ChatGPT 内で確認できるように、`get_private_profile` と `ui://profile/profile-v1.html` を関連付けました。
 
 resource 側では MCP Apps の MIME type、Widget の origin、CSP を宣言します。
 外部 API と外部 asset を使わない Widget なので、許可する domain は空配列です。
@@ -333,7 +373,7 @@ SCREENSHOT_TODO：ChatGPT Web > Settings > Plugins > oauth mixed clean 1 の詳�
 最初のアプリでは認証方式に `OAuth` を指定していました。
 この設定では、接続前の詳細画面に action が表示されず、ChatGPT はアプリ全体の接続を先に要求しました。
 
-tool 単位の認証を観察したかったため、認証方式を Mixed Authentication に変えました。
+接続前でも `get_public_server_info` を使い、プロフィール取得時だけ認証を要求するため、認証方式を Mixed Authentication に変えました。
 これにより、`initialize` と `tools/list` は匿名のまま、`get_private_profile` だけが `profile.read` を要求します。
 
 しかし、Mixed Authentication に変えた直後にも action が表示されない場合がありました。
@@ -511,7 +551,7 @@ Integration test では、D1 で同じ code または refresh token を同時利
 一方、自動テストだけでは ChatGPT の app snapshot、会話への tool 追加、選択したモデル、iframe の描画を検査できません。
 その部分は Developer Mode の手動操作と `wrangler tail` を同時に使って確認しました。
 
-## 接続解除から OAuth を再確認する
+## 未接続の会話からプロフィール取得を再実行する
 
 最後にアプリの接続を解除し、新しい会話から `get_private_profile` を依頼しました。
 
@@ -530,9 +570,9 @@ profile Widget と ID、表示名、メール、scope が見える状態を使�
 このコメント全体を ![](画像 URL) に置き換える。
 -->
 
-この再検証で、MCP server の実装、ChatGPT の OAuth client、ユーザーの browser が担当する処理を request 単位で追えるようになりました。
+最終的に、未接続の会話から OAuth を開始し、接続したアカウントの profile Widget を表示できました。
 MCP server が正しい `tools/list` を返すことと、その tool が現在の会話へ渡されることは別の状態です。
-OAuth の不具合を調べるときも、MCP endpoint へ request が届く前なのか、届いた後なのかを分けると修正箇所を絞れます。
+ChatGPT との接続を調べるときは、MCP endpoint へ request が届く前なのか、届いた後なのかを分けると修正箇所を絞れます。
 
 ## 参考資料
 
