@@ -3,12 +3,12 @@ title: "ChatGPT Plugin で OAuth 認証したアカウント情報を取得す�
 emoji: "🔐"
 type: "tech"
 topics: ["chatgpt", "mcp", "oauth", "hono", "cloudflare"]
-published: false
+published: true
 ---
 
 ChatGPT の Developer Mode から MCP tool を呼び、OAuth で接続したサービスのアカウント情報を取得して Widget に表示するアプリを実装しました。
 
-未接続の会話では接続カードと同意画面を表示し、認可後は元の tool を Bearer token 付きで再実行します。
+今回の検証では、未接続の会話に接続カードと同意画面が表示され、認可後は元の tool が Bearer token 付きで再実行されました。
 この記事の対象は OAuth protocol の解説ではなく、ChatGPT が保護された tool を見つけ、token に紐づくアカウントを取得し、その結果を会話と Widget へ返す実装です。
 一連の動作を再現するため、Authorization Server と Resource Server を Hono で実装し、ChatGPT が送る request を Cloudflare Workers のログで確認しました。
 
@@ -17,7 +17,7 @@ ChatGPT の Developer Mode から MCP tool を呼び、OAuth で接続したサ�
 
 :::message alert
 この実装は ChatGPT との接続に必要な機能を確認するための検証用サーバーです。
-OpenAI は、公開アプリでは実績のある Identity Provider を使うように推奨しています。
+OpenAI は、公開アプリでは[実績のある Identity Provider を使うことを強く推奨](https://developers.openai.com/plugins/build/auth#choosing-an-identity-provider)しています。
 本番の Authorization Server としては使わないでください。
 :::
 
@@ -41,7 +41,7 @@ ChatGPT にログインしているユーザーの個人情報ではありませ
 
 ## ChatGPT と Hono アプリの責務
 
-OAuth の役割名で整理すると、ChatGPT は **OAuth client** です。
+OAuth の役割名で整理すると、[ChatGPT は OAuth client](https://developers.openai.com/plugins/build/auth#components) です。
 OpenID Connect の ID Token を扱っていないため、この記事の実装では ChatGPT を RP とは呼びません。
 
 Hono アプリは、次の 2 つを同じ origin で提供します。
@@ -97,7 +97,8 @@ OAuth の service 層は Cloudflare Workers の API に依存していないた�
 ChatGPT は、最初から認可 endpoint の場所を知っているわけではありません。
 MCP server の **Protected Resource Metadata** を読み、そこから **Authorization Server Metadata** を取得します。
 
-Hono では 2 つの well-known endpoint を次のように返しました。
+Hono では Protected Resource Metadata の origin 版と path 版、Authorization Server Metadata を次のように返しました。
+[MCP Authorization 仕様](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#protected-resource-metadata-discovery)では、Resource Server が path を持つ場合の path-aware discovery も定義されています。
 
 ```ts:src/oauth/routes.ts
 const protectedResourceMetadata = {
@@ -108,6 +109,10 @@ const protectedResourceMetadata = {
 };
 
 app.get("/.well-known/oauth-protected-resource", (c) =>
+  c.json(protectedResourceMetadata),
+);
+
+app.get("/.well-known/oauth-protected-resource/mcp", (c) =>
   c.json(protectedResourceMetadata),
 );
 
@@ -126,10 +131,10 @@ app.get("/.well-known/oauth-authorization-server", (c) =>
 );
 ```
 
-この例では、ChatGPT が接続ごとに public client を登録できるように **Dynamic Client Registration（DCR）** を実装しています。
-DCR の request で受け取った redirect URI を保存し、authorize endpoint と token endpoint の両方で完全一致を要求します。
+この例では、ChatGPT が接続ごとに public client を登録できるように [Dynamic Client Registration（DCR）](https://datatracker.ietf.org/doc/html/rfc7591) を実装しています。
+DCR の request で受け取った redirect URI を保存し、[authorize endpoint と token endpoint の両方で完全一致](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization#redirect-uri-validation)を要求します。
 
-現在の OpenAI ドキュメントは、Authorization Server が対応できる場合には Client ID Metadata Documents（CIMD）を推奨しています。
+現在の OpenAI ドキュメントは、Authorization Server が対応できる場合には [Client ID Metadata Documents（CIMD）を推奨](https://developers.openai.com/plugins/build/auth#client-registration)しています。
 今回の Worker は DCR の registration endpoint を公開し、ChatGPT が送る client 登録 request を受け付ける構成にしました。
 
 ChatGPT が使う metadata と OAuth flow は、OpenAI の [Authentication](https://developers.openai.com/plugins/build/auth) にまとまっています。
@@ -171,8 +176,9 @@ server.setRequestHandler("tools/list", async () => {
 });
 ```
 
-2026-08-01 時点の MCP TypeScript SDK v2 では、OpenAI 拡張の top-level `securitySchemes` が汎用 schema に含まれていませんでした。
-高水準 API を通すと field が落ちるため、`tools/list` の境界だけを low-level handler で返しています。
+この実装で使った `@modelcontextprotocol/server@2.0.0` の core schema には、OpenAI 拡張の top-level `securitySchemes` が含まれていませんでした。
+ChatGPT へ送る wire 上に field を残すため、`tools/list` の境界だけを low-level handler で返しています。
+E2E test では、生の response と汎用 MCP client で parse した結果を分けて検査しました。
 
 tool descriptor の宣言だけでは、access token の期限切れや必要な scope を満たさない状態を伝えられません。
 保護 tool の handler では Bearer token を検証し、実行できない場合に `_meta["mcp/www_authenticate"]` を返します。
@@ -333,6 +339,7 @@ resource 側では MCP Apps の MIME type、Widget の origin、CSP を宣言し
 ```
 
 MCP Apps UI の resource URI、`structuredContent`、CSP は、OpenAI の [Add UI to your MCP server](https://developers.openai.com/plugins/build/chatgpt-ui) を参照しました。
+公式ドキュメントにある `_meta.ui.domain` を設定し、今回確認した ChatGPT host との互換用に `openai/widgetDomain` にも同じ値を返しています。
 
 ## Cloudflare Workers へ deploy する
 
@@ -343,7 +350,7 @@ bun install --frozen-lockfile
 bun run db:check
 bun run db:migrate:remote
 bun run deploy
-bun run smoke:deployment
+BASE_URL=https://chatgpt-oauth-example.0xjj.workers.dev bun run smoke:deployment
 ```
 
 ChatGPT から接続する MCP URL は、deploy した Worker の `/mcp` です。
@@ -406,7 +413,8 @@ Accept: */*
 Body: 0 bytes
 ```
 
-2026-08-02 時点の MCP SDK v2 は、この request を JSON-RPC として処理する前に HTTP 415 で拒否しました。
+この実装では、`@modelcontextprotocol/hono@2.0.0` と `@modelcontextprotocol/server@2.0.0` を組み合わせて使いました。
+この request は JSON-RPC の処理へ入る前に、HTTP 415 が返りました。
 その結果、ChatGPT が `initialize` と `tools/list` へ進まず、action が一件も表示されませんでした。
 
 ✅ **対応：空の到達確認だけ 204 で返す**
@@ -447,14 +455,21 @@ if (probeBodyByteLength === 0) {
 }
 ```
 
-対応後は、Worker に次の順序で request が届きました。
+対応後の `wrangler tail` には、次のような順序で request が表示されました。
 
 ```text
-POST /mcp application/octet-stream body=0 -> 204
-POST /mcp tools/list -> 200
-POST /mcp initialize -> 200
-POST /mcp resources/read -> 200
+4:26:27 POST /mcp tools/list -> 200
+4:26:26 POST /mcp application/octet-stream body=0 -> 204
+4:26:26 POST /mcp initialize -> 200
+4:26:26 POST /mcp notifications/initialized -> 202
+4:26:27 POST /mcp resources/read -> 200
 ```
+
+`wrangler tail` の表示順は request の時刻順とは限りません。
+実際の出力では `tools/list` が `initialize` より上に表示されましたが、timestamp は `initialize` のほうが 1 秒早い値でした。
+[MCP の lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle#initialization) でも、client は `initialize` request を送り、成功後に `notifications/initialized` を送るよう定められています。
+したがって、表示順だけでは `tools/list` のほうが先に送信されたとは判断できません。
+同一秒に記録された複数 request の厳密な前後関係は、このログだけでは断定していません。
 
 ここで 204 が返ることだけでは、tool discovery の成功を保証しません。
 後続の `initialize` と `tools/list` まで確認する必要があります。
@@ -506,9 +521,9 @@ action が詳細画面に見えても、会話から tool を呼べるとは限�
 
 ![](https://static.zenn.studio/user-upload/42c2d74798a1-20260802.png)
 
-✅ **対応：通常モデルへ切り替える**
+✅ **対応：通常モードへ切り替える**
 
-同じアプリと prompt のまま `Pro` を外して通常モデルへ切り替えると、`tools/call` が Worker へ届き、HTTP 200 で成功しました。
+同じアプリと prompt のまま `Pro` を外して通常モードへ切り替えると、`tools/call` が Worker へ届き、HTTP 200 で成功しました。
 これは 2026-08-02 に使用した ChatGPT Web の製品挙動であり、MCP protocol の仕様ではありません。
 
 ### Widget domain の警告が出た
@@ -517,11 +532,11 @@ OAuth と profile tool が動いた後、アプリ詳細に「Widget domain が�
 
 ✅ **対応：Widget resource に domain と CSP を設定する**
 
-Widget resource の `_meta.ui.domain` に専用 Worker origin を設定し、互換用の `openai/widgetDomain` にも同じ値を返すと警告が消えました。
+Widget resource の `_meta.ui.domain` に専用 Worker origin を設定し、今回確認した ChatGPT host との互換用に `openai/widgetDomain` にも同じ値を返すと警告が消えました。
 外部通信をしない Widget では、`connectDomains` と `resourceDomains` を空配列にして CSP を明示しています。
 
 Developer Mode の「CSP を適用する」設定も有効にしました。
-本番相当の iframe 制約で確認し、未宣言の外部通信へ依存していないことを確かめるためです。
+Developer Mode でも CSP が有効な状態で確認し、未宣言の外部通信へ依存していないことを確かめるためです。
 
 ![](https://static.zenn.studio/user-upload/c900c47843cf-20260802.png)
 
@@ -563,4 +578,9 @@ ChatGPT との接続を調べるときは、MCP endpoint へ request が届く�
 - [Authentication](https://developers.openai.com/plugins/build/auth)
 - [Connect and test your plugin](https://developers.openai.com/plugins/deploy/connect-chatgpt)
 - [Add UI to your MCP server](https://developers.openai.com/plugins/build/chatgpt-ui)
+- [MCP Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+- [MCP Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)
+- [RFC 9728: OAuth 2.0 Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728)
+- [RFC 8414: OAuth 2.0 Authorization Server Metadata](https://datatracker.ietf.org/doc/html/rfc8414)
+- [RFC 7591: OAuth 2.0 Dynamic Client Registration Protocol](https://datatracker.ietf.org/doc/html/rfc7591)
 - [サンプル実装 chatgpt-oauth-example](https://github.com/konojunya/chatgpt-oauth-example)
