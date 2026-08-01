@@ -375,10 +375,26 @@ SCREENSHOT_TODO：ChatGPT Web > Settings > Plugins > oauth mixed clean 1 の詳�
 ChatGPT へのアプリ登録からプロフィールの Widget 表示までに、tool discovery、OAuth callback、会話への tool 追加という別々の場所で処理が止まりました。
 Worker の request log と ChatGPT の画面を対応させ、どの処理まで進んだかを切り分けました。
 
+画面の error 文だけでは、ChatGPT と Worker のどちらで処理が止まったのかを判断できません。
+そこで、各症状を `wrangler tail` に届いた request と対応させました。
+
+| 症状 | Worker の tail | 調べる場所 |
+| --- | --- | --- |
+| action が一件もない | `tools/list` がない | 作成時 probe、認証方式、MCP handshake |
+| action は見えるが会話で呼べない | 新しい request がない | 会話への app 追加、選択中のモデル、ChatGPT 側の状態 |
+| OAuth の接続カードが出ない | 未認証 `tools/call` がある | `securitySchemes`、Protected Resource Metadata、`mcp/www_authenticate` |
+| 同意後に戻らない | authorize POST はあるが token POST がない | redirect URI、同意画面の CSP |
+| profile は返るが Widget が出ない | `tools/call` はあるが `resources/read` がない | resource URI、MIME type、Widget metadata |
+
+診断ログには JSON-RPC method、Content-Type、認証済みかどうか、response status だけを残しました。
+Authorization header、OAuth code、token、tool argument、profile は記録していません。
+
 ### action が一件も表示されなかった
 
 最初のアプリでは認証方式に `OAuth` を指定していました。
 この設定では、接続前の詳細画面に action が表示されず、ChatGPT はアプリ全体の接続を先に要求しました。
+
+#### Mixed Authentication に切り替える
 
 接続前でも `get_public_server_info` を使い、プロフィール取得時だけ認証を要求するため、認証方式を Mixed Authentication に変えました。
 これにより、`initialize` と `tools/list` は匿名のまま、`get_private_profile` だけが `profile.read` を要求します。
@@ -399,6 +415,8 @@ Body: 0 bytes
 
 2026-08-02 時点の MCP SDK v2 は、この request を JSON-RPC として処理する前に HTTP 415 で拒否しました。
 その結果、ChatGPT が `initialize` と `tools/list` へ進まず、action が一件も表示されませんでした。
+
+#### 空の到達確認だけ 204 で返す
 
 この POST は MCP の method ではなく、ChatGPT の作成画面による到達確認として観測したものです。
 `application/octet-stream` かつ body が空の場合だけ 204 を返し、それ以外は MCP handler へ渡しました。
@@ -462,6 +480,8 @@ SCREENSHOT_TODO：Cloudflare の terminal で wrangler tail を実行した画�
 原因は、同意画面へ設定した HTTP CSP の `form-action` でした。
 `form-action 'self'` だけでは、POST 後に続く ChatGPT origin への navigation が止まりました。
 
+#### 登録済み callback origin を CSP に追加する
+
 callback origin をそのまま許可すると open redirect の入口になります。
 先に DCR で登録した redirect URI と完全一致することを検証し、その後で origin だけを CSP へ追加しました。
 
@@ -499,6 +519,8 @@ action が詳細画面に見えても、会話から tool を呼べるとは限�
 このとき Worker には `initialize` と `tools/call` のどちらも届いていません。
 したがって、OAuth route や MCP handler が返した error ではありません。
 
+#### 通常モデルへ切り替える
+
 同じアプリと prompt のまま `Pro` を外して通常モデルへ切り替えると、`tools/call` が Worker へ届き、HTTP 200 で成功しました。
 これは 2026-08-02 に使用した ChatGPT Web の製品挙動であり、MCP protocol の仕様ではありません。
 
@@ -512,6 +534,8 @@ tool が利用できないと返された状態を使う。
 
 OAuth と profile tool が動いた後、アプリ詳細に「Widget domain がこの template に設定されていない」という警告が残りました。
 
+#### Widget resource に domain と CSP を設定する
+
 Widget resource の `_meta.ui.domain` に専用 Worker origin を設定し、互換用の `openai/widgetDomain` にも同じ値を返すと警告が消えました。
 外部通信をしない Widget では、`connectDomains` と `resourceDomains` を空配列にして CSP を明示しています。
 
@@ -523,21 +547,6 @@ SCREENSHOT_TODO：ChatGPT Web > Settings > Plugins > oauth mixed clean 1 の tem
 Widget domain の警告と、ui.domain を反映して警告が消えた状態を比較できるようにする。
 このコメント全体を ![](画像 URL) に置き換える。
 -->
-
-### tail で失敗した場所を分ける
-
-今回の調査では、画面の error 文より Worker に request が届いたかどうかを先に確認しました。
-
-| 症状 | Worker の tail | 調べる場所 |
-| --- | --- | --- |
-| action が一件もない | `tools/list` がない | 作成時 probe、認証方式、MCP handshake |
-| action は見えるが会話で呼べない | 新しい request がない | 会話への app 追加、選択中のモデル、ChatGPT 側の状態 |
-| OAuth の接続カードが出ない | 未認証 `tools/call` がある | `securitySchemes`、Protected Resource Metadata、`mcp/www_authenticate` |
-| 同意後に戻らない | authorize POST はあるが token POST がない | redirect URI、同意画面の CSP |
-| profile は返るが Widget が出ない | `tools/call` はあるが `resources/read` がない | resource URI、MIME type、Widget metadata |
-
-診断ログには JSON-RPC method、Content-Type、認証済みかどうか、response status だけを残しました。
-Authorization header、OAuth code、token、tool argument、profile は記録していません。
 
 ## 自動テストと実機テストの境界
 
