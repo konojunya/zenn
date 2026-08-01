@@ -1,5 +1,5 @@
 ---
-title: "ChatGPT の MCP OAuth を Hono で実装して認証の流れを追う"
+title: "ChatGPT Plugin で OAuth を実装する"
 emoji: "🔐"
 type: "tech"
 topics: ["chatgpt", "mcp", "oauth", "hono", "cloudflare"]
