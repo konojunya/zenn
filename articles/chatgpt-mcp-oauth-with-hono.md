@@ -370,7 +370,12 @@ SCREENSHOT_TODO：ChatGPT Web > Settings > Plugins > oauth mixed clean 1 の詳�
 このコメント全体を ![](画像 URL) に置き換える。
 -->
 
-## action が一件も表示されなかった
+## 注意点と詰まった点
+
+ChatGPT へのアプリ登録からプロフィールの Widget 表示までに、tool discovery、OAuth callback、会話への tool 追加という別々の場所で処理が止まりました。
+Worker の request log と ChatGPT の画面を対応させ、どの処理まで進んだかを切り分けました。
+
+### action が一件も表示されなかった
 
 最初のアプリでは認証方式に `OAuth` を指定していました。
 この設定では、接続前の詳細画面に action が表示されず、ChatGPT はアプリ全体の接続を先に要求しました。
@@ -381,7 +386,7 @@ SCREENSHOT_TODO：ChatGPT Web > Settings > Plugins > oauth mixed clean 1 の詳�
 しかし、Mixed Authentication に変えた直後にも action が表示されない場合がありました。
 MCP client から直接 `tools/list` を呼ぶと 2 つの tool が返るため、OAuth の実装だけを直しても原因には届きません。
 
-## 作成時の 0 byte POST が 415 になった
+### 作成時の 0 byte POST が 415 になった
 
 `wrangler tail` で作成時の request を追うと、ChatGPT は JSON-RPC handshake の前に次の POST を送っていました。
 
@@ -449,7 +454,7 @@ SCREENSHOT_TODO：Cloudflare の terminal で wrangler tail を実行した画�
 このコメント全体を ![](画像 URL) に置き換える。
 -->
 
-## 同意後に ChatGPT へ戻らなかった
+### 同意後に ChatGPT へ戻らなかった
 
 次に止まったのは OAuth の同意後です。
 同意画面は表示され、許可ボタンの POST も Worker に届きましたが、ChatGPT の callback へ遷移しませんでした。
@@ -486,7 +491,7 @@ SCREENSHOT_TODO：Hono が Cloudflare Workers から返す OAuth 2.1 CONSENT 画
 このコメント全体を ![](画像 URL) に置き換える。
 -->
 
-## app を選んでも会話から tool が呼ばれなかった
+### app を選んでも会話から tool が呼ばれなかった
 
 action が詳細画面に見えても、会話から tool を呼べるとは限りませんでした。
 2026-08-02 の検証では、入力欄にアプリの chip がある状態でも、`Pro` を選んだ会話は「tool が利用可能な一覧へ公開されていない」と返しました。
@@ -503,7 +508,7 @@ tool が利用できないと返された状態を使う。
 このコメント全体を ![](画像 URL) に置き換える。
 -->
 
-## Widget domain の警告が出た
+### Widget domain の警告が出た
 
 OAuth と profile tool が動いた後、アプリ詳細に「Widget domain がこの template に設定されていない」という警告が残りました。
 
@@ -519,7 +524,7 @@ Widget domain の警告と、ui.domain を反映して警告が消えた状態�
 このコメント全体を ![](画像 URL) に置き換える。
 -->
 
-## tail で失敗した場所を分ける
+### tail で失敗した場所を分ける
 
 今回の調査では、画面の error 文より Worker に request が届いたかどうかを先に確認しました。
 
