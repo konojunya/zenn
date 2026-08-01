@@ -1,0 +1,49 @@
+name: Notify 0xjj.dev
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "articles/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify-0xjj-dev
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate GitHub App configuration
+        shell: bash
+        env:
+          APP_CLIENT_ID: ${{ vars.JJ_GITHUB_APP_CLIENT_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.JJ_GITHUB_APP_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$APP_CLIENT_ID" || -z "$APP_PRIVATE_KEY" ]]; then
+            echo "::error::JJ_GITHUB_APP_CLIENT_ID or JJ_GITHUB_APP_PRIVATE_KEY is not configured."
+            exit 1
+          fi
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.JJ_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.JJ_GITHUB_APP_PRIVATE_KEY }}
+          owner: konojunya
+          repositories: 0xjj.dev
+          permission-contents: write
+
+      - name: Dispatch article synchronization
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          jq -n --arg sha "$GITHUB_SHA" \
+            '{event_type: "zenn_articles_updated", client_payload: {sha: $sha}}' \
+            | gh api --method POST repos/konojunya/0xjj.dev/dispatches --input -
