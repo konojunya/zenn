@@ -21,7 +21,7 @@ jobs:
       - name: Validate GitHub App configuration
         shell: bash
         env:
-          APP_CLIENT_ID: ${{ vars.JJ_GITHUB_APP_CLIENT_ID }}
+          APP_CLIENT_ID: ${{ secrets.JJ_GITHUB_APP_CLIENT_ID }}
           APP_PRIVATE_KEY: ${{ secrets.JJ_GITHUB_APP_PRIVATE_KEY }}
         run: |
           if [[ -z "$APP_CLIENT_ID" || -z "$APP_PRIVATE_KEY" ]]; then
@@ -33,7 +33,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          client-id: ${{ vars.JJ_GITHUB_APP_CLIENT_ID }}
+          client-id: ${{ secrets.JJ_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.JJ_GITHUB_APP_PRIVATE_KEY }}
           owner: konojunya
           repositories: 0xjj.dev

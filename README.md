@@ -5,10 +5,10 @@ zenn contents
 
 `main` の `articles/*.md` が更新されると、`.github/workflows/notify-0xjj-dev.yml` がGitHub App経由で `konojunya/0xjj.dev` の同期workflowを起動する。公開済みの記事だけが `https://0xjj.dev/blog/` のリンク一覧へ反映される。
 
-Zennリポジトリには次のActions設定が必要。
+Zennリポジトリには次のActions Secretsが必要。
 
-- Variable: `JJ_GITHUB_APP_CLIENT_ID`
-- Secret: `JJ_GITHUB_APP_PRIVATE_KEY`
+- `JJ_GITHUB_APP_CLIENT_ID`
+- `JJ_GITHUB_APP_PRIVATE_KEY`
 
 GitHub Appは `konojunya/0xjj.dev` にインストールし、Repository permissionsの `Contents` を `Read and write` にする。WebhookとClient Secretは使用しない。
 
