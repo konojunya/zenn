@@ -37,10 +37,7 @@ OpenAI は、公開アプリでは実績のある Identity Provider を使うよ
 ここで取得するのは、MCP server に接続したサービスアカウントです。
 ChatGPT にログインしているユーザーの個人情報ではありません。
 
-<!--
-SCREENSHOT_TODO：ChatGPT Web の新しい会話で、tool menu から oauth mixed clean 1 を選択した入力欄を載せる。
-このコメント全体を ![](画像 URL) に置き換える。
--->
+![](https://static.zenn.studio/user-upload/49628bbd5fe2-20260802.png)
 
 ## ChatGPT と Hono アプリの責務
 
@@ -364,11 +361,7 @@ ChatGPT Web では Developer Mode を有効にし、Plugins の作成画面か�
 - `get_public_server_info`
 - `get_private_profile`
 
-<!--
-SCREENSHOT_TODO：ChatGPT Web > Settings > Plugins > oauth mixed clean 1 の詳細画面を載せる。
-「なし、OAuth」と get_public_server_info、get_private_profile が同時に見える状態を使う。
-このコメント全体を ![](画像 URL) に置き換える。
--->
+![](https://static.zenn.studio/user-upload/2cb5900d48a0-20260802.png)
 
 ## 注意点と詰まった点
 
@@ -458,19 +451,15 @@ if (probeBodyByteLength === 0) {
 
 ```text
 POST /mcp application/octet-stream body=0 -> 204
-POST /mcp initialize -> 200
 POST /mcp tools/list -> 200
+POST /mcp initialize -> 200
 POST /mcp resources/read -> 200
 ```
 
 ここで 204 が返ることだけでは、tool discovery の成功を保証しません。
 後続の `initialize` と `tools/list` まで確認する必要があります。
 
-<!--
-SCREENSHOT_TODO：Cloudflare の terminal で wrangler tail を実行した画面を載せる。
-0 byte POST の 204 と、その後の initialize、tools/list の 200 が連続している状態を使う。
-このコメント全体を ![](画像 URL) に置き換える。
--->
+![](https://static.zenn.studio/user-upload/ef78c5649117-20260802.png)
 
 ### 同意後に ChatGPT へ戻らなかった
 
@@ -505,11 +494,7 @@ return c.html(renderConsentPage(request, view));
 
 修正後は authorize POST の 302 に続いて token endpoint が呼ばれ、元の `get_private_profile` まで自動実行されました。
 
-<!--
-SCREENSHOT_TODO：Hono が Cloudflare Workers から返す OAuth 2.1 CONSENT 画面を載せる。
-デモユーザーと profile.read、拒否、許可の各表示が見える状態を使う。
-このコメント全体を ![](画像 URL) に置き換える。
--->
+![](https://static.zenn.studio/user-upload/f03837ba6f5a-20260802.gif)
 
 ### app を選んでも会話から tool が呼ばれなかった
 
@@ -519,16 +504,12 @@ action が詳細画面に見えても、会話から tool を呼べるとは限�
 このとき Worker には `initialize` と `tools/call` のどちらも届いていません。
 したがって、OAuth route や MCP handler が返した error ではありません。
 
+![](https://static.zenn.studio/user-upload/42c2d74798a1-20260802.png)
+
 ✅ **対応：通常モデルへ切り替える**
 
 同じアプリと prompt のまま `Pro` を外して通常モデルへ切り替えると、`tools/call` が Worker へ届き、HTTP 200 で成功しました。
 これは 2026-08-02 に使用した ChatGPT Web の製品挙動であり、MCP protocol の仕様ではありません。
-
-<!--
-SCREENSHOT_TODO：ChatGPT Web の Pro を選んだ会話で、oauth mixed clean 1 の chip が見えている画面を載せる。
-tool が利用できないと返された状態を使う。
-このコメント全体を ![](画像 URL) に置き換える。
--->
 
 ### Widget domain の警告が出た
 
@@ -542,11 +523,7 @@ Widget resource の `_meta.ui.domain` に専用 Worker origin を設定し、互
 Developer Mode の「CSP を適用する」設定も有効にしました。
 本番相当の iframe 制約で確認し、未宣言の外部通信へ依存していないことを確かめるためです。
 
-<!--
-SCREENSHOT_TODO：ChatGPT Web > Settings > Plugins > oauth mixed clean 1 の template 詳細画面を載せる。
-Widget domain の警告と、ui.domain を反映して警告が消えた状態を比較できるようにする。
-このコメント全体を ![](画像 URL) に置き換える。
--->
+![](https://static.zenn.studio/user-upload/c900c47843cf-20260802.png)
 
 ## 自動テストと実機テストの境界
 
@@ -574,17 +551,7 @@ Integration test では、D1 で同じ code または refresh token を同時利
 ChatGPT は接続カードを表示し、許可を選ぶと Hono の同意画面へ移動しました。
 `profile.read` を許可すると callback 後に元の tool が自動実行され、profile Widget が表示されました。
 
-<!--
-SCREENSHOT_TODO：ChatGPT Web の未接続状態で get_private_profile を依頼したときに表示される oauth mixed clean 1 の接続カードを載せる。
-「今はしない」と「接続」が見える状態を使う。
-このコメント全体を ![](画像 URL) に置き換える。
--->
-
-<!--
-SCREENSHOT_TODO：ChatGPT Web の同じ会話で、OAuth 許可後に get_private_profile が自動実行された画面を載せる。
-profile Widget と ID、表示名、メール、scope が見える状態を使う。
-このコメント全体を ![](画像 URL) に置き換える。
--->
+![](https://static.zenn.studio/user-upload/5b6b994a74cb-20260802.gif)
 
 最終的に、未接続の会話から OAuth を開始し、接続したアカウントの profile Widget を表示できました。
 MCP server が正しい `tools/list` を返すことと、その tool が現在の会話へ渡されることは別の状態です。
