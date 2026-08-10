@@ -388,7 +388,7 @@ Authorization header、OAuth code、token、tool argument、profile は記録し
 最初のアプリでは認証方式に `OAuth` を指定していました。
 この設定では、接続前の詳細画面に action が表示されず、ChatGPT はアプリ全体の接続を先に要求しました。
 
-#### Mixed Authentication に切り替える
+**Mixed Authentication に切り替えました。**
 
 接続前でも `get_public_server_info` を使い、プロフィール取得時だけ認証を要求するため、認証方式を Mixed Authentication に変えました。
 これにより、`initialize` と `tools/list` は匿名のまま、`get_private_profile` だけが `profile.read` を要求します。
@@ -411,7 +411,7 @@ Body: 0 bytes
 この request は JSON-RPC の処理へ入る前に、HTTP 415 が返りました。
 その結果、ChatGPT が `initialize` と `tools/list` へ進まず、action が一件も表示されませんでした。
 
-#### 空の到達確認だけ 204 で返す
+**空の到達確認だけ 204 で返します。**
 
 この POST は MCP の method ではなく、ChatGPT の作成画面による到達確認として観測したものです。
 `application/octet-stream` かつ body が空の場合だけ 204 を返し、それ以外は MCP handler へ渡しました。
@@ -478,7 +478,7 @@ if (probeBodyByteLength === 0) {
 原因は、同意画面へ設定した HTTP CSP の `form-action` でした。
 `form-action 'self'` だけでは、POST 後に続く ChatGPT origin への navigation が止まりました。
 
-#### 登録済み callback origin を CSP に追加する
+**登録済み callback origin を CSP に追加します。**
 
 callback origin をそのまま許可すると open redirect の入口になります。
 先に DCR で登録した redirect URI と完全一致することを検証し、その後で origin だけを CSP へ追加しました。
@@ -515,7 +515,7 @@ action が詳細画面に見えても、会話から tool を呼べるとは限�
 
 ![](https://static.zenn.studio/user-upload/42c2d74798a1-20260802.png)
 
-#### 通常モードへ切り替える
+**通常モードへ切り替えました。**
 
 同じアプリと prompt のまま `Pro` を外して通常モードへ切り替えると、`tools/call` が Worker へ届き、HTTP 200 で成功しました。
 これは 2026-08-02 に使用した ChatGPT Web の製品挙動であり、MCP protocol の仕様ではありません。
@@ -524,7 +524,7 @@ action が詳細画面に見えても、会話から tool を呼べるとは限�
 
 OAuth と profile tool が動いた後、アプリ詳細に「Widget domain がこの template に設定されていない」という警告が残りました。
 
-#### Widget resource に domain と CSP を設定する
+**Widget resource に domain と CSP を設定します。**
 
 Widget resource の `_meta.ui.domain` に専用 Worker origin を設定し、今回確認した ChatGPT host との互換用に `openai/widgetDomain` にも同じ値を返すと警告が消えました。
 外部通信をしない Widget では、`connectDomains` と `resourceDomains` を空配列にして CSP を明示しています。

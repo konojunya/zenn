@@ -5,23 +5,14 @@ type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["cloudflare", "zerotrust", "terraform"]
 published: true
 ---
+社内や外部の関係者だけに Worker のページを見せたいとき、Cloudflare Access を使うとアプリケーション側へ認証を実装せずにアクセスを制限できます。
+今回は GitHub を Identity Provider にして、許可するユーザーと Worker を Terraform で管理します。
 
+# GitHub ログインを用意する
 
-# モチベーション
+## Cloudflare Zero Trust のチームを作る
 
-社内の人向けや、外部の関係者に対してだけ特定の Web ページを見せたいような要件に対して Cloudflare Zero Trust で保護をしたいタイミングがあり、とても便利でしたが体系的な記事が少ないように思えるので執筆します。
-
-## 対象読者
-
-- 特定の Worker を invoke できる人を管理したい
-- Zero Trust を使ってみたい
-- Terraform で管理したい
-
-# 準備
-
-## Clouflare Zero Trust のチーム作成
-
-Cloudflare Zero Trust のチームを作成しておきます。Cloudflare で初めて Zero Trust へアクセスした場合に `.cloudflareaccess.com` のサブドメインを決められるページにきてプランの設定などを行います。
+Cloudflare Zero Trust を初めて開くと、`.cloudflareaccess.com` で使うチームドメインとプランを設定する画面が表示されます。
 
 ![](https://storage.googleapis.com/zenn-user-upload/2d8ae812712e-20250912.png)
 
@@ -29,21 +20,21 @@ Cloudflare Zero Trust のチームを作成しておきます。Cloudflare で�
 
 ## GitHub OAuth App の作成
 
-GitHub でログインできるように GitHub OAuth Apps を作成しておきましょう。
+GitHub でログインできるように GitHub OAuth App を作成します。
 
 personal: `https://github.com/settings/applications/new`
 organization: `https://github.com/organizations/<org>/settings/applications/new`
 
-上記の URL で作成ができます。
+設定画面から作成する場合は次の場所です。
 
 ```
 personal: settings -> Developer settings -> OAuth Apps -> New OAuth App
 organization: settings -> Developer settings -> OAuth Apps -> New OAuth app
 ```
 
-今回は personal で話を進めます。
+今回は個人アカウントに作成します。
 
-Authorization callback URL は上記、 Cloudflare Zero Trust のチームを作成した際のサブドメインを用いて以下のように設定します。
+Authorization callback URL には、先ほど決めたチームドメインを使います。
 
 ```
 https://<your team id>.cloudflareaccess.com/cdn-cgi/access/callback
@@ -51,19 +42,13 @@ https://<your team id>.cloudflareaccess.com/cdn-cgi/access/callback
 
 ![](https://storage.googleapis.com/zenn-user-upload/95ff902b3d86-20250912.png)
 
-その先のページの `Client ID` と `Client secrets` は手元で保存をしておきましょう。後ほど、 Terraform で Zero Trust のポリシーを作成する際に使います。
+作成後に表示される `Client ID` と `Client secret` は、後ほど Terraform から Identity Provider を作るときに使います。
 
 ![](https://storage.googleapis.com/zenn-user-upload/9376cb2d6727-20250912.png)
 
-# 実装
+# 保護する Worker を用意する
 
-1. 簡単な worker を実装
-2. terraform で zero trust application の追加
-3. policy の設定
-
-## worker を実装
-
-今回、GitHub でログインした後に見ることのできるアプリケーションを適当に用意します。
+GitHub でログインした後に表示する Worker を Hono で用意します。
 
 ```shell
 bun create hono@latest
@@ -72,19 +57,19 @@ bun run deploy
 
 ![](https://storage.googleapis.com/zenn-user-upload/cb6552834526-20250912.png)
 
-worker がデプロイされたら、一旦アクセスしてみましょう。
+デプロイした URL へ直接アクセスします。
 
 ![](https://storage.googleapis.com/zenn-user-upload/e9cae904a218-20250912.png)
 
-「Hello Hono!」とレスポンスされたら成功です。
+この時点では Access を設定していないので、`Hello Hono!` がそのまま表示されます。
 
-## Terraform で構築する
+# Terraform state を R2 へ置く
 
-まずは tfstate を管理する R2 bucket を作成します。
+tfstate を保存する R2 bucket を先に作成します。
 
 ![](https://storage.googleapis.com/zenn-user-upload/dcfb36c0f2e3-20250912.png)
 
-API Token を作成しましょう。カスタムトークンを作成し、適切な権限を付与していきます。
+次に Cloudflare API Token をカスタムトークンで作成します。
 
 ```
 プロフィール -> API トークン -> トークンを作成する
@@ -92,7 +77,7 @@ API Token を作成しましょう。カスタムトークンを作成し、適�
 
 ![](https://storage.googleapis.com/zenn-user-upload/b10a5ea362be-20250912.png)
 
-以下の権限を付与してください。
+この記事の構成では次の権限を付与します。
 
 |service|permission|
 |:--|:-:|
@@ -102,13 +87,13 @@ API Token を作成しましょう。カスタムトークンを作成し、適�
 |Access: Apps and Policy|Edit|
 |Access: Organizations, Identity Providers, and Groups|Edit|
 
-作成するアカウントを「アカウントリソース」の中で含めていることを確認してください。
+対象のアカウントが「アカウントリソース」に含まれていることも確認します。
 
 ![](https://storage.googleapis.com/zenn-user-upload/50eb493e4252-20250912.png)
 
-この API Token では、 R2 の Access Key や Secret が表示されないので R2 側で設定をします。
+Cloudflare API Token とは別に、Terraform の S3 backend から R2 へ接続する Access Key ID と Secret Access Key が必要です。
 
-R2 のページに帰ってきたら、「API トークンの管理」を押して進みます。「ユーザー API トークン」の欄に先ほど作った API Token が並んでいることを確認してください。
+R2 の「API トークンの管理」を開き、「ユーザー API トークン」から R2 用の認証情報を作成します。
 
 ![](https://storage.googleapis.com/zenn-user-upload/34e94c5e2a40-20250912.png)
 
@@ -116,13 +101,13 @@ R2 のページに帰ってきたら、「API トークンの管理」を押し�
 
 ![](https://storage.googleapis.com/zenn-user-upload/7518bad3ee51-20250912.png)
 
-そうすると以下のようなページに切り替わり、トークン自体の他に S3 Client のアクセスキーやシークレット、エンドポイントが表示されるのでコピーしてメモしておきます。
+作成後に表示される S3 client の Access Key ID、Secret Access Key、endpoint を保存しておきます。
 
 ![](https://storage.googleapis.com/zenn-user-upload/2bef886ad6f9-20250912.png)
 
-### main.tf
+## main.tf
 
-まず `main.tf` を作成します。ここでは provider や version の設定を一気にやります。
+`main.tf` に Terraform と Cloudflare provider、S3 backend を設定します。
 
 ```tf:main.tf
 terraform {
@@ -156,19 +141,16 @@ locals {
 }
 ```
 
-環境変数も設定します。筆者の環境では direnv を使っているため direnv を用いて、 shell に流し込みます。
-
-`AWS_ACCOUNT_ID` と `CLOUDFLARE_ACCOUNT_ID` はどちらも Worker のページなどでみれる「アカウント ID」を入れてください。
+認証情報はリポジトリへ commit せず、環境変数から渡します。筆者の環境では direnv を使っています。
 
 ```env
-AWS_ACCOUNT_ID=<your account id>
-AWS_ACCESS_KEY_ID=c88b15d0bab88ece4b67762342027fec
-AWS_SECRET_ACCESS_KEY=34ef2511cb2c88b6d992a6998c0ba2de542673d52de9ee672a9f00429536571c
-CLOUDFLARE_ACCOUNT_ID=<your account id>
-CLOUDFLARE_API_TOKEN=Xba4WyCD_okHLftHGfejRDQQHSGoLa6gu0RRVwsl
+AWS_ACCESS_KEY_ID=<your R2 access key id>
+AWS_SECRET_ACCESS_KEY=<your R2 secret access key>
+CLOUDFLARE_ACCOUNT_ID=<your Cloudflare account id>
+CLOUDFLARE_API_TOKEN=<your Cloudflare API token>
 ```
 
-ここまで設定したら terraform init で初期化します。
+R2 の endpoint を `backend "s3"` へ設定したら、Terraform を初期化します。
 
 ```shell
 terraform init
@@ -176,9 +158,9 @@ terraform init
 
 ![](https://storage.googleapis.com/zenn-user-upload/c176258813f5-20250912.png)
 
-### R2 の import
+## R2 bucket を import する
 
-手動で作成しておいた R2 も同じように Terraform で管理するために import を行います。
+手動で作成した R2 bucket も Terraform で管理するため、resource を定義して import します。
 
 https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/r2_bucket
 
@@ -193,21 +175,19 @@ resource "cloudflare_r2_bucket" "tfstate" {
 terraform import cloudflare_r2_bucket.tfstate '<account_id>/zero-trust-example/default'
 ```
 
-import が成功すると `terraform plan` で No Changes. と表示されます。
+import 後の `terraform plan` が `No Changes.` になれば、resource の定義と実体が一致しています。
 
 ![](https://storage.googleapis.com/zenn-user-upload/00d14960fe7d-20250912.png)
 
-### Zero Trust
+# GitHub IdP と Access policy を作る
 
-では Zero Trust のリソースを作ります。IdP の作成、アプリケーションの作成、ポリシーの作成します。
+## GitHub IdP
 
-#### IdP
-
-まずは Identity Provider として GitHub を追加します。
+Identity Provider として GitHub を追加します。
 
 https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_access_identity_provider
 
-`main.tf` に `github_client_id` と `github_client_secret` を増やしてコマンド実行時、`TF_VAR_` prefix をつけて環境変数から指定します。
+`github_client_id` と `github_client_secret` は variable として定義し、`TF_VAR_` prefix の環境変数から渡します。
 
 ```tf:main.tf
 variable "github_client_id" {
@@ -219,7 +199,7 @@ variable "github_client_secret" {
 }
 ```
 
-IdP の設定は以下のようにし、 config に client_id, client_secret を `var.github_client_id` のように渡します。
+IdP の `config` から variable を参照します。
 
 ```tf:zero_trust.tf
 resource "cloudflare_zero_trust_access_identity_provider" "github" {
@@ -233,32 +213,31 @@ resource "cloudflare_zero_trust_access_identity_provider" "github" {
 }
 ```
 
-Terraform の実装を終えたら、 apply しましょう。 `TF_VAR_` を含んで実行することを忘れずにしてください。
+GitHub OAuth App の認証情報を、そのプロセスだけに渡して apply します。
 
 ```shell
-TF_VAR_github_client_id=<github client id>
-TF_VAR_github_client_secret=<github client secret>
-
+TF_VAR_github_client_id=<github client id> \
+TF_VAR_github_client_secret=<github client secret> \
 terraform apply
 ```
 
 ![](https://storage.googleapis.com/zenn-user-upload/83a4e30147c4-20250912.png)
 
-ここまできたら、 Zero Trust のページの設定 -> 認証を開くと `GitHub・github` が追加されているので、「テスト」というリンクをクリックしてうまく GitHub OAuth App とつながっているかを確認します。
+Zero Trust の「設定」から「認証」を開くと `GitHub・github` が追加されています。「テスト」から GitHub OAuth App との接続を確認します。
 
 ![](https://storage.googleapis.com/zenn-user-upload/9a99a15a09f6-20250912.png)
 
-うまく連携できていれば、以下のようによく見る OAuth の画面になります。
+接続できていれば GitHub の認可画面が表示されます。
 
 ![](https://storage.googleapis.com/zenn-user-upload/396fe83d9875-20250912.png)
 
-#### Zero Trust Application and Policy
+## Access Application とポリシー
 
 https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_access_application
 
-最後に Application とポリシーを作成して worker を保護します。
+Application とポリシーを作成して Worker を保護します。
 
-まず `main.tf` に許可するユーザーの GitHub に使っている Email を列挙しておきます。
+許可するユーザーの GitHub アカウントで使っているメールアドレスを列挙します。
 
 ```tf:main.tf
 locals {
@@ -268,7 +247,7 @@ locals {
 }
 ```
 
-社内の人だけアクセスすると仮定する場合、 Google Workspace の domain や、特定の GitHub の org に所属している人に絞ることができます。今回は簡単にメールアドレスでのマッチングにします。
+Google Workspace のドメインや GitHub organization でも絞れますが、今回はメールアドレスで一致させます。
 
 ```tf:zero_trust.tf
 resource "cloudflare_zero_trust_access_policy" "employee" {
@@ -287,9 +266,7 @@ resource "cloudflare_zero_trust_access_policy" "employee" {
 }
 ```
 
-最後に Zero Trust Application を作成します。
-
-domain には先ほどデプロイしておいた worker のドメインを記述しておきます。
+Application の `domain` には、先ほどデプロイした Worker のドメインを指定します。
 
 ```tf:zero_trust.tf
 resource "cloudflare_zero_trust_access_application" "zero-trust-example" {
@@ -307,9 +284,10 @@ resource "cloudflare_zero_trust_access_application" "zero-trust-example" {
 }
 ```
 
-## アクセス制限できているか確認する
+# GitHub でログインする
 
-では、 worker のドメインにアクセスしてみます。すると worker の保護がされていて、 GitHub アカウントでログインすると認証の対象ユーザーであれば Hello Hono! のページへまた帰ってくるのが確認できます。
+Worker のドメインを開くと、直接 `Hello Hono!` を返さず Cloudflare Access のログイン画面へ移動します。
+GitHub で認可し、ポリシーで許可したユーザーなら元の Worker へ戻れます。
 
 ![](https://storage.googleapis.com/zenn-user-upload/c7493ca0820d-20250913.png)
 

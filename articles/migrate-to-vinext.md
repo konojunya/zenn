@@ -1,5 +1,5 @@
 ---
-title: "@opennextjs/cloudflare から vinext に移行した"
+title: "@opennextjs/cloudflare から vinext に移行して戻した"
 emoji: "🚚"
 type: "tech"
 topics: ["cloudflare", "nextjs", "vinext", "vite"]
@@ -7,17 +7,24 @@ published: true
 published_at: 2026-02-28
 ---
 
-playground.0xjj.dev を `@opennextjs/cloudflare` から [vinext](https://vinext.io/) に移行しました。vinext は Next.js の App Router を Vite 上で再実装したフレームワークです。`@cloudflare/vite-plugin` と組み合わせることで Cloudflare Workers へのデプロイがシンプルになります。
+:::message alert
+この記事は 2026-02-28 に vinext へ移行したときの記録です。
+移行後、vinext の RSC dev build が workerd で `WeakRef` を要求して起動できない問題があり、同日中に `@opennextjs/cloudflare` へ戻しました。
+以下は移行中に確認した設定とハマりどころとして残しています。
+:::
 
-`@opennextjs/cloudflare` は Next.js のビルド成果物を Workers 向けに変換するアダプタですが、vinext は Vite ベースでビルドパイプライン全体を制御するため、Vite プラグインのエコシステムをそのまま使えるのが大きな利点です。
+playground.0xjj.dev を `@opennextjs/cloudflare` から [vinext](https://vinext.io/) へ移行しました。
+vinext は Next.js の App Router を Vite 上で再実装していて、`@cloudflare/vite-plugin` と組み合わせて Cloudflare Workers へデプロイできます。
 
-今回の移行は [Claude Code](https://docs.anthropic.com/en/docs/claude-code) を使って行いました。vinext 公式が提供している agent skill があり、以下のコマンドでインストールできます。
+`@opennextjs/cloudflare` の変換処理を外し、Vite のビルドパイプラインへ寄せたときに何を変更したかを記録します。
+移行には [Claude Code](https://docs.anthropic.com/en/docs/claude-code) と、vinext 公式の agent skill を使いました。
 
 ```sh
 npx skills add cloudflare/vinext
 ```
 
-この skill をインストールした状態で Claude Code に移行を指示すると、互換性チェックから `package.json` の書き換え、`vite.config.ts` の生成、`wrangler.jsonc` の更新まで一通り自動で行ってくれます。以降の記事ではその過程で発生したハマりポイントを中心に記録していきます。
+skill を入れた状態で移行を指示すると、互換性チェックから `package.json`、`vite.config.ts`、`wrangler.jsonc` まで変更されました。
+定型的な差分は任せられたので、ここでは手で判断した箇所と、Cloudflare Workers 上で止まった箇所を中心に残します。
 
 ## 移行前の構成
 
@@ -39,11 +46,12 @@ npx skills add cloudflare/vinext
 
 ## vinext check で互換性チェック
 
-vinext には `vinext check` というコマンドがあり、既存の Next.js プロジェクトの互換性をチェックできます。実行すると 91% compatible という結果が出ました。唯一の issue は `package.json` に `"type": "module"` が設定されていないことだけでした。
+`vinext check` を実行すると `91% compatible` で、検出された issue は `package.json` に `"type": "module"` がないことだけでした。
+ただし、このチェックは後述する workerd 上の実行可否までは判定しません。
 
 ## package.json の変更
 
-deps の入れ替えと scripts の変更をします。
+依存パッケージと scripts を次のように変更しました。
 
 ```diff:package.json
 +  "type": "module",
@@ -77,7 +85,8 @@ deps の入れ替えと scripts の変更をします。
 +    "vite": "^7",
 ```
 
-`next` と `@opennextjs/cloudflare` を削除し、代わりに `vinext` / `vite` / `@cloudflare/vite-plugin` を追加します。MDX も `@next/mdx` + `@mdx-js/loader` から Vite プラグインの `@mdx-js/rollup` に変更しています。
+`next` と `@opennextjs/cloudflare` を外し、`vinext`、`vite`、`@cloudflare/vite-plugin` を追加します。
+MDX は `@next/mdx` と `@mdx-js/loader` から、Vite プラグインの `@mdx-js/rollup` へ変更しました。
 
 ## vite.config.ts の作成
 
@@ -116,7 +125,7 @@ export default defineConfig({
 });
 ```
 
-ここで 2 つハマりポイントがありました。
+この設定では、プラグインの登録順と重複で 2 回止まりました。
 
 ### `@vitejs/plugin-rsc` の duplicate エラー
 
@@ -126,7 +135,8 @@ export default defineConfig({
 Error: Duplicate plugin "vite:rsc"
 ```
 
-vinext が内部で `@vitejs/plugin-rsc` を自動的に登録するため、自分で追加する必要はありません。`devDependencies` には残しますが、`vite.config.ts` の plugins からは外します。
+vinext が内部で `@vitejs/plugin-rsc` を登録するため、`vite.config.ts` への追加は不要でした。
+`devDependencies` には残し、plugins からだけ外します。
 
 ### MDX プラグインに `enforce: "pre"` が必要
 
@@ -136,7 +146,8 @@ MDX プラグインを `enforce` なしで登録すると、以下のエラー�
 Parse error @:1:1
 ```
 
-これは `es-module-lexer` によるパースエラーで、RSC の scan-strip プラグインが MDX ファイルを先に処理しようとして失敗しています。`enforce: "pre"` を指定して MDX の変換を RSC scan-strip より先に実行させることで解決します。
+RSC の scan-strip plugin が MDX を先に処理し、`es-module-lexer` の parse で失敗していました。
+`enforce: "pre"` を指定し、MDX の変換を RSC scan-strip より先に実行させます。
 
 ## wrangler.jsonc の更新
 
@@ -152,15 +163,16 @@ Parse error @:1:1
    },
 ```
 
-`@opennextjs/cloudflare` では `.open-next/` 配下のビルド成果物を参照していましたが、vinext では `vinext/server/app-router-entry` をエントリーポイントとして指定します。assets のディレクトリ指定も不要になります。
+`@opennextjs/cloudflare` では `.open-next/` 配下のビルド結果を参照していました。
+vinext では `vinext/server/app-router-entry` をエントリーポイントに指定し、assets のディレクトリ指定を外します。
 
 ## Cloudflare Workers 固有の問題
 
-移行後、Cloudflare Workers 上で 2 つの問題が発生しました。
+フレームワーク固有の API と `NextRequest` に依存していた 2 箇所を変更しました。
 
 ### `getCloudflareContext()` → `import { env } from 'cloudflare:workers'`
 
-`@opennextjs/cloudflare` では `getCloudflareContext()` を使って環境変数や service binding にアクセスしていました。
+`@opennextjs/cloudflare` では `getCloudflareContext()` から環境変数や service binding にアクセスしていました。
 
 ```ts
 // before
@@ -169,7 +181,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 const { env } = getCloudflareContext();
 ```
 
-vinext ではこの API は存在しないため、`cloudflare:workers` から直接 `env` を import します。
+vinext にはこの API がないので、`cloudflare:workers` から `env` を import します。
 
 ```ts
 // after
@@ -178,7 +190,7 @@ import { env } from "cloudflare:workers";
 
 ### `request.nextUrl` → `new URL(request.url)`
 
-`@opennextjs/cloudflare` は `NextRequest` の `nextUrl` プロパティを shim していましたが、vinext にはこの shim がありません。
+`request.nextUrl` も使えなかったため、標準の `URL` API へ置き換えました。
 
 ```ts
 // before
@@ -187,7 +199,7 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-標準の `URL` API を使うように書き換えます。型も `NextRequest` から `Request` に変更します。
+引数の型も `NextRequest` から `Request` へ変更します。
 
 ```ts
 // after
@@ -198,11 +210,11 @@ export async function GET(request: Request) {
 
 ## OGP 画像の動的生成が動かない
 
-playground.0xjj.dev では各ツールページに OGP 画像を設定しています。`@opennextjs/cloudflare` 時代は `@vercel/og`（内部的に satori + resvg-wasm）を使って動的に生成していましたが、vinext 移行後にこれが動かなくなりました。
+playground.0xjj.dev は各 tool の OGP 画像を `@vercel/og` で動的に生成していましたが、vinext へ移した状態では動きませんでした。
 
 ### WASM の初期化問題
 
-satori は内部で yoga.wasm を、resvg-wasm は index_bg.wasm をそれぞれ使います。Cloudflare Workers では WASM モジュールの読み込み方法が Node.js と異なるため、`?module` サフィックスで import する必要があります。
+satori の `yoga.wasm` と resvg-wasm の `index_bg.wasm` を、Cloudflare Workers でモジュールとして扱うため `?module` を付けて import しました。
 
 ```ts
 // @ts-expect-error — wasm module imports handled by Vite/Cloudflare
@@ -211,20 +223,24 @@ import resvgWasm from "@resvg/resvg-wasm/index_bg.wasm?module";
 import yogaWasm from "../../node_modules/satori/yoga.wasm?module";
 ```
 
-しかしこの方法でも `Already initialized` エラーや初期化タイミングの競合が発生し、安定しませんでした。
+この方法では `Already initialized` と初期化タイミングの競合が残り、安定して生成できませんでした。
 
 ### フォントの読み込み問題
 
-satori でテキストを描画するにはフォントデータ（ArrayBuffer）が必要です。通常は Google Fonts から `fetch` してフォントを読み込みますが、Cloudflare Workers では自分自身への fetch（self-fetch）が制限されています。`public/` に配置したフォントファイルを `fetch` で取得する方法も使えません。
+satori に渡すフォントデータも必要です。
+Google Fonts からの `fetch` ではなく `public/` へ置く構成を試しましたが、Worker 自身への self-fetch が制限されるため取得できませんでした。
 
-回避策として `@fontsource/noto-sans` の TTF を base64 エンコードして TypeScript ファイルに埋め込む方法を試しましたが、ファイルサイズが巨大になり Workers のバンドルサイズ制限に引っかかる問題がありました。
+`@fontsource/noto-sans` の TTF を base64 にして TypeScript へ埋め込むと、今度はバンドルサイズの制限に収まりませんでした。
 
 ### 解決策：ビルド時に静的生成
 
-最終的にランタイムでの動的生成を諦めました。代替策として、ビルド前に Go スクリプトで静的な PNG を事前生成し `public/` へ配置する方針に切り替えました。静的ファイルとして配信するだけなので Workers の制約を一切受けません。
+WASM とフォントの両方をランタイムで解決するのをやめ、ビルド前に Go で PNG を生成して `public/` へ置くことにしました。
+Worker からは静的ファイルを返すだけになります。
 
-## まとめ
+## `@opennextjs/cloudflare` へ戻した理由
 
-`@opennextjs/cloudflare` から vinext への移行は、互換性チェックの結果通りスムーズに進みました。ビルドが 2 段階から 1 段階になり、`open-next.config.ts` も不要になったことで構成がシンプルになっています。Vite プラグインのエコシステムをそのまま使えるのも大きなメリットです。
+ここまでの移行自体は、`vinext check` の結果どおり大半が機械的な変更で済みました。
+一方で、移行後に vinext の RSC dev build を workerd で起動すると、利用できない `WeakRef` を要求する問題が残りました。
 
-Claude Code の vinext skill を使えば定型的な書き換えは自動化できるので、Cloudflare Workers 上で Next.js を動かしている方は試してみてください。
+この状態では移行を維持できなかったため、2026-02-28 のうちに `@opennextjs/cloudflare` へ戻しました。
+この記事は vinext を現在の構成として勧めるものではなく、その日に確認できた移行手順と互換性の記録です。
