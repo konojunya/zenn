@@ -6,11 +6,12 @@ topics: ["chatgpt", "mcp", "oauth", "hono", "cloudflare"]
 published: true
 ---
 
-ChatGPT の Developer Mode から MCP tool を呼び、OAuth で接続したサービスのアカウント情報を取得して Widget に表示するアプリを実装しました。
+ChatGPT の Developer Mode から MCP tool を呼び、OAuth で接続したサービスのアカウント情報を Widget に表示するアプリを実装しました。
 
-今回の検証では、未接続の会話に接続カードと同意画面が表示され、認可後は元の tool が Bearer token 付きで再実行されました。
-この記事の対象は OAuth protocol の解説ではなく、ChatGPT が保護された tool を見つけ、token に紐づくアカウントを取得し、その結果を会話と Widget へ返す実装です。
-一連の動作を再現するため、Authorization Server と Resource Server を Hono で実装し、ChatGPT が送る request を Cloudflare Workers のログで確認しました。
+未接続の会話で tool を呼ぶと接続カードと同意画面が開き、認可後は同じ tool が Bearer token 付きで再実行されます。
+今回はこの一連の request を確認したかったので、Authorization Server と Resource Server を Hono で実装し、Cloudflare Workers のログと突き合わせました。
+
+OAuth protocol 全体の解説ではなく、ChatGPT が保護された tool を見つけ、token に紐づくアカウントを取得し、会話と Widget へ返すまでを扱います。
 
 実装は GitHub の [chatgpt-oauth-example](https://github.com/konojunya/chatgpt-oauth-example) で公開しています。
 コード例は、動作確認に使った [515b6a0 時点の実装](https://github.com/konojunya/chatgpt-oauth-example/tree/515b6a0e4fb623bc76d24a4b00edde32bd03faaa) から説明に必要な行だけを抜粋しています。
@@ -21,7 +22,7 @@ OpenAI は、公開アプリでは[実績のある Identity Provider を使う�
 本番の Authorization Server としては使わないでください。
 :::
 
-## ChatGPT から認証済みプロフィールを取得する
+## 未接続の会話からプロフィールを取得する
 
 `get_private_profile` を呼んだユーザーが未接続なら OAuth を開始し、接続後は token に紐づくプロフィールを返します。
 実装した操作の流れは次のとおりです。
@@ -78,19 +79,12 @@ sequenceDiagram
   MCP-->>ChatGPT: profile と Widget resource
 ```
 
-## 使用した技術
-
-- **Runtime と package manager**：Bun
-- **HTTP framework**：Hono
-- **MCP transport**：Streamable HTTP
-- **OAuth**：Authorization Code、PKCE S256、Dynamic Client Registration
-- **Database**：ローカルでは SQLite、Cloudflare Workers では D1
-- **Query builder**：Drizzle ORM
-- **Deployment**：Cloudflare Workers
-- **ChatGPT UI**：MCP Apps の inline Widget
+HTTP framework は Hono、runtime と package manager は Bun です。
+MCP は Streamable HTTP、OAuth は Authorization Code と PKCE S256、client 登録は Dynamic Client Registration で実装しました。
+認可情報はローカルでは SQLite、Cloudflare Workers では D1 に保存し、query builder には Drizzle ORM を使っています。
 
 ローカルと D1 で repository interface を共有し、保存先だけを差し替えました。
-OAuth の service 層は Cloudflare Workers の API に依存していないため、Bun の `app.fetch` だけで E2E test を実行できます。
+OAuth の service 層を Cloudflare Workers の API から離したので、Bun の `app.fetch` だけで E2E test を実行できます。
 
 ## ChatGPT に認可 endpoint を知らせる
 
@@ -370,7 +364,7 @@ ChatGPT Web では Developer Mode を有効にし、Plugins の作成画面か�
 
 ![](https://static.zenn.studio/user-upload/2cb5900d48a0-20260802.png)
 
-## 注意点と詰まった点
+## Worker のログから停止箇所を探す
 
 ChatGPT へのアプリ登録からプロフィールの Widget 表示までに、tool discovery、OAuth callback、会話への tool 追加という別々の場所で処理が止まりました。
 Worker の request log と ChatGPT の画面を対応させ、どの処理まで進んだかを切り分けました。
@@ -394,7 +388,7 @@ Authorization header、OAuth code、token、tool argument、profile は記録し
 最初のアプリでは認証方式に `OAuth` を指定していました。
 この設定では、接続前の詳細画面に action が表示されず、ChatGPT はアプリ全体の接続を先に要求しました。
 
-✅ **対応：Mixed Authentication に切り替える**
+#### Mixed Authentication に切り替える
 
 接続前でも `get_public_server_info` を使い、プロフィール取得時だけ認証を要求するため、認証方式を Mixed Authentication に変えました。
 これにより、`initialize` と `tools/list` は匿名のまま、`get_private_profile` だけが `profile.read` を要求します。
@@ -417,7 +411,7 @@ Body: 0 bytes
 この request は JSON-RPC の処理へ入る前に、HTTP 415 が返りました。
 その結果、ChatGPT が `initialize` と `tools/list` へ進まず、action が一件も表示されませんでした。
 
-✅ **対応：空の到達確認だけ 204 で返す**
+#### 空の到達確認だけ 204 で返す
 
 この POST は MCP の method ではなく、ChatGPT の作成画面による到達確認として観測したものです。
 `application/octet-stream` かつ body が空の場合だけ 204 を返し、それ以外は MCP handler へ渡しました。
@@ -484,7 +478,7 @@ if (probeBodyByteLength === 0) {
 原因は、同意画面へ設定した HTTP CSP の `form-action` でした。
 `form-action 'self'` だけでは、POST 後に続く ChatGPT origin への navigation が止まりました。
 
-✅ **対応：登録済み callback origin を CSP に追加する**
+#### 登録済み callback origin を CSP に追加する
 
 callback origin をそのまま許可すると open redirect の入口になります。
 先に DCR で登録した redirect URI と完全一致することを検証し、その後で origin だけを CSP へ追加しました。
@@ -521,7 +515,7 @@ action が詳細画面に見えても、会話から tool を呼べるとは限�
 
 ![](https://static.zenn.studio/user-upload/42c2d74798a1-20260802.png)
 
-✅ **対応：通常モードへ切り替える**
+#### 通常モードへ切り替える
 
 同じアプリと prompt のまま `Pro` を外して通常モードへ切り替えると、`tools/call` が Worker へ届き、HTTP 200 で成功しました。
 これは 2026-08-02 に使用した ChatGPT Web の製品挙動であり、MCP protocol の仕様ではありません。
@@ -530,7 +524,7 @@ action が詳細画面に見えても、会話から tool を呼べるとは限�
 
 OAuth と profile tool が動いた後、アプリ詳細に「Widget domain がこの template に設定されていない」という警告が残りました。
 
-✅ **対応：Widget resource に domain と CSP を設定する**
+#### Widget resource に domain と CSP を設定する
 
 Widget resource の `_meta.ui.domain` に専用 Worker origin を設定し、今回確認した ChatGPT host との互換用に `openai/widgetDomain` にも同じ値を返すと警告が消えました。
 外部通信をしない Widget では、`connectDomains` と `resourceDomains` を空配列にして CSP を明示しています。
@@ -540,7 +534,7 @@ Developer Mode でも CSP が有効な状態で確認し、未宣言の外部通
 
 ![](https://static.zenn.studio/user-upload/c900c47843cf-20260802.png)
 
-## 自動テストと実機テストの境界
+## どこまでを自動テストにするか
 
 E2E test は、Hono の `app.fetch` を直接呼び、次の流れを 1 つの test で実行します。
 
@@ -559,7 +553,7 @@ Integration test では、D1 で同じ code または refresh token を同時利
 一方、自動テストだけでは ChatGPT の app snapshot、会話への tool 追加、選択したモデル、iframe の描画を検査できません。
 その部分は Developer Mode の手動操作と `wrangler tail` を同時に使って確認しました。
 
-## 未接続の会話からプロフィール取得を再実行する
+## 接続を切って通しで確認する
 
 最後にアプリの接続を解除し、新しい会話から `get_private_profile` を依頼しました。
 
@@ -568,7 +562,6 @@ ChatGPT は接続カードを表示し、許可を選ぶと Hono の同意画面
 
 ![](https://static.zenn.studio/user-upload/5b6b994a74cb-20260802.gif)
 
-最終的に、未接続の会話から OAuth を開始し、接続したアカウントの profile Widget を表示できました。
 MCP server が正しい `tools/list` を返すことと、その tool が現在の会話へ渡されることは別の状態です。
 ChatGPT との接続を調べるときは、MCP endpoint へ request が届く前なのか、届いた後なのかを分けると修正箇所を絞れます。
 
