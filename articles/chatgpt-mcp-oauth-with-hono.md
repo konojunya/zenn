@@ -1,5 +1,5 @@
 ---
-title: "ChatGPT Plugin で OAuth 認証したアカウント情報を取得する"
+title: "ChatGPT Plugin に OAuth でプロフィール情報へのアクセスを許可する"
 emoji: "🔐"
 type: "tech"
 topics: ["chatgpt", "mcp", "oauth", "hono", "cloudflare"]
@@ -9,6 +9,9 @@ published: true
 ChatGPT の Developer Mode から MCP tool を呼び、OAuth で接続したサービスのアカウント情報を Widget に表示するアプリを実装しました。
 
 未接続の会話で tool を呼ぶと接続カードと同意画面が開き、認可後は同じ tool が Bearer token 付きで再実行されます。
+[OAuth 2.0](https://datatracker.ietf.org/doc/html/rfc6749) は、第三者のアプリケーションが HTTP サービスへ限定的にアクセスするための認可の枠組みです。
+この記事で扱うのも、ChatGPT に `profile.read` scope を許可し、その範囲でプロフィールを取得する処理です。
+
 今回はこの一連の request を確認したかったので、Authorization Server と Resource Server を Hono で実装し、Cloudflare Workers のログと突き合わせました。
 
 OAuth protocol 全体の解説ではなく、ChatGPT が保護された tool を見つけ、token に紐づくアカウントを取得し、会話と Widget へ返すまでを扱います。
@@ -29,7 +32,7 @@ OpenAI は、公開アプリでは[実績のある Identity Provider を使う�
 
 1. ChatGPT の tool menu から Developer Mode アプリを選ぶ。
 2. 「現在接続しているアカウントのプロフィールを取得して」と依頼する。
-3. ChatGPT が tool の認証要件を読み、接続カードを表示する。
+3. ChatGPT が tool の OAuth 要件を読み、接続カードを表示する。
 4. Hono が返す同意画面で `profile.read` を許可する。
 5. ChatGPT が callback を受け取り、認可 code を access token と交換する。
 6. ChatGPT が元の tool を Bearer token 付きで再実行する。
@@ -43,14 +46,14 @@ ChatGPT にログインしているユーザーの個人情報ではありませ
 ## ChatGPT と Hono アプリの責務
 
 OAuth の役割名で整理すると、[ChatGPT は OAuth client](https://developers.openai.com/plugins/build/auth#components) です。
-OpenID Connect の ID Token を扱っていないため、この記事の実装では ChatGPT を RP とは呼びません。
+[OpenID Connect](https://openid.net/specs/openid-connect-core-1_0.html) の ID Token を扱っていないため、この記事の実装では ChatGPT を RP とは呼ばず、access token をユーザー認証の結果としても扱いません。
 
 Hono アプリは、次の 2 つを同じ origin で提供します。
 
 - **Authorization Server**：client 登録、同意画面、認可 code、access token を提供する。
 - **Resource Server**：`/mcp` を公開し、Bearer token と scope を検証して tool を実行する。
 
-ログイン認証も別の責務です。
+OAuth による認可と、サービス側のユーザー認証は別の責務です。
 このサンプルは `demo-user` がログイン済みだと仮定し、ユーザー認証を実装していません。
 実サービスでは、同意画面を開く前にログイン session を検証し、認可するユーザーを確定させる必要があります。
 
@@ -133,13 +136,13 @@ DCR の request で受け取った redirect URI を保存し、[authorize endpoi
 
 ChatGPT が使う metadata と OAuth flow は、OpenAI の [Authentication](https://developers.openai.com/plugins/build/auth) にまとまっています。
 
-## tool ごとに認証要件を宣言する
+## tool ごとに必要な OAuth scope を宣言する
 
-MCP server 全体を OAuth 必須にすると、接続前の `tools/list` まで認証で止まります。
+MCP server 全体を OAuth 必須にすると、接続前の `tools/list` まで access token が必要になります。
 公開 tool と保護 tool を並べるため、ChatGPT のアプリ作成時には **Mixed Authentication** を選びました。
 
-[ChatGPT Developer mode](https://developers.openai.com/api/docs/guides/developer-mode) では、Mixed Authentication の `initialize` と `tools/list` は未認証で実行されます。
-各 tool の認証要否は、tool descriptor の `securitySchemes` で決まります。
+[ChatGPT Developer mode](https://developers.openai.com/api/docs/guides/developer-mode) では、Mixed Authentication の `initialize` と `tools/list` は access token なしで実行されます。
+各 tool が要求する OAuth scope は、tool descriptor の `securitySchemes` で決まります。
 
 ```ts:src/mcp/server.ts
 const publicSecuritySchemes: OpenAIToolDescriptor["securitySchemes"] = [
@@ -191,7 +194,7 @@ function authenticationRequired(config: AppConfig, description: string) {
 }
 ```
 
-OpenAI の認証ドキュメントでも、tool 単位の OAuth UI には metadata と runtime challenge の両方が必要だと説明されています。
+OpenAI の [Authentication ドキュメント](https://developers.openai.com/plugins/build/auth)でも、tool 単位の OAuth UI には metadata と runtime challenge の両方が必要だと説明されています。
 server が HTTP 401 を返す通常の Resource Server と、JSON-RPC の tool result で challenge を返す MCP tool を混同しないようにしました。
 
 ## access token とアカウントを結び付ける
@@ -253,7 +256,7 @@ ChatGPT から `get_private_profile` へ user ID を渡さなくても、Bearer 
 
 ## token に紐づくプロフィールを Widget に渡す
 
-`get_private_profile` は、このアプリで認証済みの情報を取得する処理です。
+`get_private_profile` は、このアプリに `profile.read` を許可したアカウントの情報を取得する処理です。
 `/mcp` が受け取った Bearer token を database で検証し、検証済みの `AuthInfo` だけを MCP handler へ渡します。
 
 ```ts:src/app.ts
@@ -355,7 +358,7 @@ https://chatgpt-oauth-example.0xjj.workers.dev/mcp
 ```
 
 ChatGPT Web では Developer Mode を有効にし、Plugins の作成画面から MCP URL を登録します。
-認証方式には `OAuth` ではなく `Mixed Authentication` を指定します。
+ChatGPT の作成画面では、「認証方式」に `OAuth` ではなく `Mixed Authentication` を指定します。
 
 作成直後の詳細画面で「サポートされている認証」が「なし、OAuth」となり、次の 2 つの action が見えれば discovery まで進んでいます。
 
@@ -374,23 +377,23 @@ Worker の request log と ChatGPT の画面を対応させ、どの処理まで
 
 | 症状 | Worker の tail | 調べる場所 |
 | --- | --- | --- |
-| action が一件もない | `tools/list` がない | 作成時 probe、認証方式、MCP handshake |
+| action が一件もない | `tools/list` がない | 作成時 probe、「認証方式」、MCP handshake |
 | action は見えるが会話で呼べない | 新しい request がない | 会話への app 追加、選択中のモデル、ChatGPT 側の状態 |
-| OAuth の接続カードが出ない | 未認証 `tools/call` がある | `securitySchemes`、Protected Resource Metadata、`mcp/www_authenticate` |
+| OAuth の接続カードが出ない | Bearer token なしの `tools/call` がある | `securitySchemes`、Protected Resource Metadata、`mcp/www_authenticate` |
 | 同意後に戻らない | authorize POST はあるが token POST がない | redirect URI、同意画面の CSP |
 | profile は返るが Widget が出ない | `tools/call` はあるが `resources/read` がない | resource URI、MIME type、Widget metadata |
 
-診断ログには JSON-RPC method、Content-Type、認証済みかどうか、response status だけを残しました。
+診断ログには JSON-RPC method、Content-Type、Bearer token の検証結果、response status だけを残しました。
 Authorization header、OAuth code、token、tool argument、profile は記録していません。
 
 ### action が一件も表示されなかった
 
-最初のアプリでは認証方式に `OAuth` を指定していました。
+最初のアプリでは「認証方式」に `OAuth` を指定していました。
 この設定では、接続前の詳細画面に action が表示されず、ChatGPT はアプリ全体の接続を先に要求しました。
 
 **Mixed Authentication に切り替えました。**
 
-接続前でも `get_public_server_info` を使い、プロフィール取得時だけ認証を要求するため、認証方式を Mixed Authentication に変えました。
+接続前でも `get_public_server_info` を使い、プロフィール取得時だけ `profile.read` scope を要求するため、「認証方式」を Mixed Authentication に変えました。
 これにより、`initialize` と `tools/list` は匿名のまま、`get_private_profile` だけが `profile.read` を要求します。
 
 しかし、Mixed Authentication に変えた直後にも action が表示されない場合がありました。
@@ -543,7 +546,7 @@ E2E test は、Hono の `app.fetch` を直接呼び、次の流れを 1 つの t
 3. DCR で public client を登録する。
 4. PKCE challenge を付けて認可 code を発行する。
 5. code と verifier を token に交換する。
-6. 未認証 tool が `mcp/www_authenticate` を返すことを確かめる。
+6. Bearer token を付けない tool が `mcp/www_authenticate` を返すことを確かめる。
 7. Bearer token 付き tool が profile を返すことを確かめる。
 8. Widget resource の origin と CSP を確かめる。
 
@@ -573,6 +576,8 @@ ChatGPT との接続を調べるときは、MCP endpoint へ request が届く�
 - [Add UI to your MCP server](https://developers.openai.com/plugins/build/chatgpt-ui)
 - [MCP Authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
 - [MCP Lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle)
+- [RFC 6749: The OAuth 2.0 Authorization Framework](https://datatracker.ietf.org/doc/html/rfc6749)
+- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
 - [RFC 9728: OAuth 2.0 Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728)
 - [RFC 8414: OAuth 2.0 Authorization Server Metadata](https://datatracker.ietf.org/doc/html/rfc8414)
 - [RFC 7591: OAuth 2.0 Dynamic Client Registration Protocol](https://datatracker.ietf.org/doc/html/rfc7591)
